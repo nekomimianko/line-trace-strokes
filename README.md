@@ -4,6 +4,27 @@
 さらに、交点で粉砕された短いストロークを方向の連続性で繋ぎ直すチェイン化により、
 データを保ったまま編集しやすい形にする。
 
+## テスト結果（アニメ風線画 1120×2240）
+
+左が元の線画、中央がストローク JSON **だけ** から復元した画像、右が誤差の重ね合わせ
+（青＝欠損、赤＝過剰）。全体図では元と復元の見分けがつかない水準まで戻る。
+
+![元・復元・誤差オーバーレイの全体比較](examples/anime/comparison_overview.png)
+
+拡大すると差が見えてくる。復元線の輪郭には、中心・半径が整数ピクセル標本であることに
+由来する階段状の波打ちが残る（目の拡大、左＝元／中央＝従来復元／右＝誤差）。
+
+![目の拡大比較](examples/anime/comparison_zoom_eye.png)
+
+レースと髪の交差部。交差・小円・ボタンなどのトポロジーは崩れていない。
+
+![レース部分の拡大比較](examples/anime/comparison_zoom_lace.png)
+
+![髪の交差部分の拡大比較](examples/anime/comparison_zoom_hair.png)
+
+入力そのものと復元単体は `examples/anime/anime_input.png` /
+`examples/anime/medial_json_restored.png` / `examples/anime/medial_chained_restored.png` にある。
+
 ## パイプライン
 
 ```
