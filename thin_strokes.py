@@ -71,10 +71,11 @@ def turn_angles(xy):
     return out
 
 
-def thin_stroke(xy, r, eps, eps_r, corner_deg):
-    """Indices to keep so the spline stays within eps of the centre
-    line AND the linearly interpolated radius stays within eps_r of
-    the traced radius. Both criteria insert their worst offender."""
+def thin_stroke(xy, r, tol, eps_r, corner_deg):
+    """Indices to keep so the spline stays within tol[i] of the centre
+    line at every point i AND the linearly interpolated radius stays
+    within eps_r of the traced radius. Both criteria insert their
+    worst offender (deviation relative to its tolerance)."""
     n = len(xy)
     if n <= 2:
         return list(range(n))
@@ -91,8 +92,9 @@ def thin_stroke(xy, r, eps, eps_r, corner_deg):
                 pieces.append(catmull_rom_samples(xy[idx]))
         samples = np.vstack(pieces) if pieces else xy[keep]
         dist, _ = cKDTree(samples).query(xy)
-        worst_c = int(np.argmax(dist))
-        score_c = dist[worst_c] / eps
+        ratio = dist / tol
+        worst_c = int(np.argmax(ratio))
+        score_c = ratio[worst_c]
         # radius deviation from linear interpolation between kept points
         karr = np.array(keep)
         r_interp = np.interp(np.arange(n), karr, r[karr])
@@ -115,6 +117,21 @@ def main():
                     help="max radius deviation from linear interpolation, px")
     ap.add_argument("--corner-deg", type=float, default=50.0,
                     help="turn angle at/above which a point is a kept corner")
+    ap.add_argument("--eps-long", type=float, default=None,
+                    help="if set, adaptive mode: strokes of arc length "
+                         ">= --len-long use this eps instead of --eps")
+    ap.add_argument("--eps-short", type=float, default=0.5,
+                    help="adaptive mode: eps for strokes <= --len-short")
+    ap.add_argument("--len-short", type=float, default=20.0,
+                    help="adaptive mode: arc length (px) at/below which "
+                         "--eps-short applies")
+    ap.add_argument("--len-long", type=float, default=200.0,
+                    help="adaptive mode: arc length (px) at/above which "
+                         "--eps-long applies (log interpolation between)")
+    ap.add_argument("--end-range", type=float, default=0.0,
+                    help="if > 0, points within this arc length (px) of "
+                         "either stroke end are held to --eps-short "
+                         "regardless of stroke length (end protection)")
     a = ap.parse_args()
 
     d = json.loads(Path(a.input).read_text())
@@ -123,7 +140,21 @@ def main():
     for s in d["strokes"]:
         xy = np.array([[p["x"], p["y"]] for p in s["points"]])
         r = np.array([p["r"] for p in s["points"]])
-        keep = thin_stroke(xy, r, a.eps, a.eps_r, a.corner_deg)
+        seg = np.linalg.norm(np.diff(xy, axis=0), axis=1) if len(xy) > 1 else np.array([])
+        arc = np.concatenate([[0.0], np.cumsum(seg)])
+        total_len = float(arc[-1]) if len(arc) else 0.0
+        if a.eps_long is not None:
+            lo, hi = math.log(a.len_short), math.log(a.len_long)
+            t = (math.log(max(total_len, 1e-9)) - lo) / (hi - lo) if hi > lo else 1.0
+            t = min(1.0, max(0.0, t))
+            eps_s = a.eps_short + (a.eps_long - a.eps_short) * t
+        else:
+            eps_s = a.eps
+        tol = np.full(len(xy), eps_s)
+        if a.end_range > 0:
+            near_end = (arc <= a.end_range) | (arc >= total_len - a.end_range)
+            tol[near_end] = np.minimum(tol[near_end], a.eps_short)
+        keep = thin_stroke(xy, r, tol, a.eps_r, a.corner_deg)
         total_in += len(xy)
         total_out += len(keep)
         s["points"] = [s["points"][i] for i in keep]
