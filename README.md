@@ -26,7 +26,7 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow sh
 場合は `git submodule update --init` で後からでも入る。）
 
 これだけで、実測で詰めた既定値のまま全工程（トレース → サブピクセル化 →
-チェイン化 → 間引き → .clip 化）が走る。パラメータをいじる必要は基本的にない。
+チェイン化 → 半径フィルタ → 間引き → .clip 化）が走る。パラメータをいじる必要は基本的にない。
 
 ### 間引きについて
 
@@ -89,6 +89,7 @@ tol を上げると線の通り道そのものが単純になる（瞳の放射�
 variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク列）
   │  subpixel_refine.py 中心を EDT 重心でサブピクセル化（標準工程）
   │  chain_strokes.py   分岐点で端点を直進ペアリングして連結（任意）
+  │  filter_radius.py   半径が大きすぎる点の除去（標準工程）
   │  refine_strokes.py  階層細分による間引き（標準工程、控えめな既定値）
   │  prune_strokes.py   ごく短いストロークの除去（任意、チェインの後に）
   ▼
@@ -116,6 +117,10 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
   近い相手」でペアリングし、ストロークを連結する。幾何には触らないので
   復元結果は変わらない（下記検証）。繋がらなかった短いストローク
   （棘・点・毛先の破片）は独立したまま残る。
+- `filter_radius.py` — 半径がしきい値（既定は画像の長い辺の1%）を
+  超える点を除去し、その位置でストロークを分割する（標準工程）。
+  大きすぎる半径の点は線の標本ではなく黒ベタ内部の足場であり、
+  線として不正なため取り除く。
 - `prune_strokes.py` — 点数が閾値以下のストロークを除去する。
   チェイン化の後に使うこと（理由は下記の除去実験）。
 - `refine_strokes.py` — 制御点の間引き（標準工程）。ストロークを
@@ -294,10 +299,12 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
 - 8近傍グラフの分岐処理はヒューリスティクス。太い塊の内部では骨格が余分に枝分かれする。
 - 中心と半径は `subpixel_refine.py` でサブピクセル化される。残る誤差は
   ポリライン近似（約1px間隔の標本を直線で繋ぐ）と残留中心ノイズが主で、
-  これはベクター側の曲線フィッティングの領域である。
+  これはベクター側の間引き（次節 `refine_strokes.py` の線分分割）の領域である。
 
-## 後処理：ε制約つき平滑化（`smooth_strokes.py`）
+## 後処理：ε制約つき平滑化（`smooth_strokes.py`、実験的）
 
+平滑化の標準は後述 `refine_strokes.py` の線分分割による間引きであり、
+こちらはそれ以前に検証した実験的な後処理として残してある。
 平滑化は測定ではなく編集（後処理）である。無制約の平滑化は忠実度を落とす
 ことが実証済みのため、中心は実測位置から ε px、半径は実測値から ε_r px
 以上は離れない制約のもとでラプラシアン緩和をかける。端点は固定され、
@@ -417,8 +424,10 @@ IoU はスプライン描画での復元値。密トレース自体の上限は 
   忠実さが要るゾーンはどう書いても点が要り、ベジェは1セグメントの
   記述が重い。得られるのはファイルサイズではなく、長い線の
   滑らかさと編集しやすさである。
-- 同じ原則は .clip 化の際の当てはめにも効くはずである
-  （中間は曲線で稼ぎ、端は別処理）。
+- 位置づけの注意：本方式は SVG 輪郭専用の後処理である。.clip 化の
+  間引き・平滑化は `refine_strokes.py` の線分分割（階層細分）が担って
+  おり、fit_curves は経由しない。端を別処理にする考え方自体は、
+  refine 側でも鋭角の保持として生きている。
 
 ## 今後の候補
 
@@ -430,7 +439,7 @@ IoU はスプライン描画での復元値。密トレース自体の上限は 
 ## ファイル
 
 - `line_to_clip.py` / `line_trace.py` / `render_strokes.py` / `subpixel_refine.py` /
-  `chain_strokes.py` / `prune_strokes.py` / `refine_strokes.py` / `thin_strokes.py` /
+  `chain_strokes.py` / `filter_radius.py` / `prune_strokes.py` / `refine_strokes.py` / `thin_strokes.py` /
   `stabilize_strokes.py` / `smooth_strokes.py` / `svg_export.py` /
   `fit_curves.py` / `render_smooth.py` — 本体
 - `examples/anime/` — テスト入力・トレース結果 JSON（未チェイン／チェイン済み）・
