@@ -356,5 +356,4 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
 
 ## ライセンス
 
-MIT License（`LICENSE` 参照）。概念実証のための実装であり、手法自体は
-骨格化・距離変換に基づく古典的なものである。自由に使ってよい。
+MIT License（`LICENSE` 参照）。
