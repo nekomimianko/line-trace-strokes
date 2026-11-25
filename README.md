@@ -67,7 +67,7 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
 ## 使い方
 
 ```bash
-python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
+python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow shapely
 
 # トレース (medial-axis 推奨)
 .venv/bin/python line_trace.py input.png -o strokes.json --method medial-axis --preview-prefix medial
@@ -87,6 +87,9 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
 .venv/bin/python render_strokes.py strokes_chained.json -o restored.png \
     --reference input.png --difference diff.png --overlay overlay.png --metrics metrics.json \
     --radius-offset -0.35
+
+# 輪郭 SVG の曲線フィッティング（後処理、正式採用。長い線をベジェで滑らかにする）
+.venv/bin/python fit_curves.py strokes_chained.json -o curved.svg
 ```
 
 ## 実測結果（アニメ風線画 1120×2240、`examples/anime/`）
@@ -268,16 +271,55 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
 - 輪郭の最適オフセットは −0.2。スタンプ復元の −0.35 との差は
   ラスタライザ側の太り（PIL の円描画）によるもので、データの差ではない。
 
+## 後処理：曲線フィッティング（`fit_curves.py`、正式採用）
+
+ポリライン輪郭をベジェ曲線に置き換える後処理として正式採用した
+（2026-11-25）。価値は「長い線がシンプルかつ滑らかになる」ことで、
+全ストロークに効くわけではない。`svg_export.py` の outline が前提。
+
+当てはめ誤差は、幾何の変化が一番速い場所 — 線端と短いストローク —
+に集中する。全面を一様に当てはめると（ε=0.5）IoU は **91.00%** まで
+落ち、その喪失の大半が端と短いストロークの分だった。そこで端は
+別処理にする：
+
+- シルエットはストロークごとに作る（端の定義がストロークの弧長に
+  依存するため）。両端から弧長 **10px** 以内の輪郭点はアンカーとして
+  ε=0.1 で密に当てはめ、ベジェのハンドルも畳んで実測幾何に張り付ける。
+  急な角（方向変化 >65°）も同様に角として保持する。
+- 長いストロークの中間だけを ε=0.3 でベジェ化する
+  （Douglas-Peucker で制御点を選び、周期 Catmull-Rom → 3次ベジェ）。
+- 全長 20px 以下のストロークは全体が端ゾーンなので、ε=0.1 の密な
+  当てはめ（短いセグメント列）にする。テスト画では 3,909 本中
+  2,769 本（71%）がこれに当たる。表現は全面ベジェで統一され、
+  変わるのはセグメントの密度だけである。
+
+実測（既定値、チェイン済みサブピクセルデータ）：
+
+| 方式 | IoU | 制御点 | サイズ |
+|---|---:|---:|---:|
+| ポリライン輪郭（simplify 0.1） | 96.09% | — | 2.2MB |
+| 曲線化・全面一様（ε=0.5） | 91.00% | 33,467 | 1.5MB |
+| **曲線化・端別処理（本方式）** | **96.01%** | 290,213 | 13.3MB |
+
+- 忠実度はポリラインと実質同点まで戻る。ただし圧縮の旨みは薄い：
+  忠実さが要るゾーンはどう書いても点が要り、ベジェは1セグメントの
+  記述が重い。得られるのはファイルサイズではなく、長い線の
+  滑らかさと編集しやすさである。
+- 同じ原則は .clip 化の際の当てはめにも効くはずである
+  （中間は曲線で稼ぎ、端は別処理）。
+
 ## 今後の候補
 
 - 本物の .clip 変換：半径付きベクターレイヤーを、.clip 内蔵の SQLite
   スキーマ経由で直接書く。フォーマット解析文書の所在確認が前提。
-- 曲線フィッティング（ポリラインをベジェ列へ置き換える単純化）。
+- 最小二乗ベジェ当てはめ（Schneider 法）：同じ ε をより少ない
+  セグメントで達成し、曲線化の圧縮率を上げる。
 
 ## ファイル
 
 - `line_trace.py` / `render_strokes.py` / `subpixel_refine.py` / `chain_strokes.py` /
-  `prune_strokes.py` / `smooth_strokes.py` / `svg_export.py` / `render_smooth.py` — 本体
+  `prune_strokes.py` / `smooth_strokes.py` / `svg_export.py` / `fit_curves.py` /
+  `render_smooth.py` — 本体
 - `examples/anime/` — テスト入力・トレース結果 JSON（未チェイン／チェイン済み）・
   復元・比較画像
 
