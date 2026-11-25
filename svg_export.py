@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Export variable-radius stroke JSON as SVG (e.g. for Clip Studio Paint).
+"""Export variable-radius stroke JSON as SVG.
 
-CSP imports SVG onto a vector layer (File > Import > Vector). Two modes:
+Two modes:
 
 - outline (既定): the exact silhouette of the stroke model -- the union of
   per-segment capsules (disk sweep) -- as filled paths. Preserves taper.
-  In CSP it edits as a filled vector shape. Needs shapely.
+  It edits as a filled vector shape. Needs shapely.
   Measured on the anime test (chained, subpixel-refined data):
   IoU 96.09% vs the original ink at the default simplify 0.1 (2.2 MB);
   96.40% with --simplify 0 (8.3 MB).
 - centerline: one stroked path per stroke, width = median diameter.
-  Edits in CSP as a vector line, but per-point width variation is lost --
-  neither SVG nor CSP import can carry it.
+  Per-point width variation (taper) is lost: an SVG stroke carries
+  exactly one width per path, so line width variation cannot be
+  expressed in this format.
 
 Coordinate note: the stroke JSON uses pixel-CENTER coordinates ((0,0) is
 the center of the top-left pixel), while SVG uses corner coordinates.

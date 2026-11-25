@@ -19,7 +19,7 @@ Measured trade-off on the anime test data (baseline: center jitter
 
 The cost is structural: Laplacian relaxation spends the tube budget
 cutting curvature inward, so jitter and fidelity trade directly. Use it
-when the destination (a vector editor, a CSP line) rewards smoothness
+when the destination (a vector editor's line) rewards smoothness
 more than the last point of fidelity -- not in the measurement pipeline.
 """
 import argparse, json
