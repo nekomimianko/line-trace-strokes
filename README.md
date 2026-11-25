@@ -85,7 +85,8 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
 
 ### チェイン化で復元が劣化しないことの検証
 
-元の人の懸念「太い線や交点の細かいストロークも復元の役に立っているはず」への確認:
+太い線や交点にある細かいストロークも復元に寄与しているはずであり、
+チェイン化でそれらを失えば復元は劣化する。実際に失われていないことの確認:
 
 - 点数の減少 6,544点 = 連結箇所で二重になっていた分岐点の重複そのもの。
   短いストロークは捨てられていない。
@@ -102,7 +103,7 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
 - 拡大すると中心と半径の画素周期ジッターで輪郭が階段状に波打つ。これが残る課題で、
   対策は復元側（平滑化してなぞる／ベクターレンダラに任せる）にある。
 
-### 同梱されていた合成テストとの差
+### 合成図形テストとの差
 
 螺旋・交差・楕円などの合成図形 (1536×1024) では medial-axis で IoU 99.34% /
 295ストロークだった。実線画で落ちる主因は精度よりもストロークの粉砕
@@ -117,12 +118,10 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
 ## 今後の候補
 
 - JSON → Blender グリースペンシル変換（ストロークとして編集・描画を任せる）。
-  変換の目処は立っているが、ヘッドレス環境での GP 描画検証が未解決。
 - サブピクセル中心化（重み付き重心など）で輪郭の波打ちを元から減らす。
 
 ## ファイル
 
+- `line_trace.py` / `render_strokes.py` / `chain_strokes.py` / `render_smooth.py` — 本体
 - `examples/anime/` — テスト入力・トレース結果 JSON（未チェイン／チェイン済み）・
   復元・比較画像
-- 元の `line_trace.py` / `render_strokes.py` と合成テスト結果は 2026-11-25 に
-  だいすけから提供されたバンドル由来。`chain_strokes.py` 以降はその検証作業で追加。
