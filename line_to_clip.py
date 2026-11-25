@@ -4,7 +4,9 @@
 Runs the whole pipeline with the measured-good defaults:
 
   line_trace.py (medial-axis) -> subpixel_refine.py (EDT centroid +
-  radius re-sampling) -> chain_strokes.py -> clipvec import
+  radius re-sampling) -> chain_strokes.py -> refine_strokes.py
+  (top-down subdivision thinning, conservative defaults) ->
+  clipvec import
 
 and writes a .clip whose vector layer carries every stroke with its
 per-point line width, ready to edit in CLIP STUDIO PAINT.
@@ -29,6 +31,11 @@ coordinates, CSP uses corner origin).
 Options:
   --svg PATH   also write a curve-fitted outline SVG (fit_curves.py)
   --no-chain   skip chain_strokes.py (strokes stay split at junctions)
+  --tol PX     shape tolerance of the thinning step (default 0.3 px;
+               raise it to smooth stroke shapes more)
+  --eps-r PX   line-width tolerance of the thinning step (default
+               0.15 px; raise it to smooth brush-size variation more)
+  --no-refine  skip refine_strokes.py (keep every traced point)
   --keep-work DIR  keep the intermediate JSONs in DIR for inspection
 
 Examples:
@@ -91,6 +98,9 @@ def main():
     ap.add_argument("--curve", choices=["spline", "straight"], default="spline")
     ap.add_argument("--dpi", type=float, default=72.0)
     ap.add_argument("--no-chain", action="store_true")
+    ap.add_argument("--tol", type=float, default=0.3)
+    ap.add_argument("--eps-r", type=float, default=0.15)
+    ap.add_argument("--no-refine", action="store_true")
     ap.add_argument("--keep-work", help="directory for intermediate JSONs (default: temp)")
     a = ap.parse_args()
 
@@ -115,6 +125,11 @@ def main():
         chained = work / "strokes_chained.json"
         run([py, HERE / "chain_strokes.py", sub, "-o", chained])
         final = chained
+    if not a.no_refine:
+        refined = work / "strokes_refined.json"
+        run([py, HERE / "refine_strokes.py", final, "-o", refined,
+             "--tol", a.tol, "--eps-r", a.eps_r])
+        final = refined
 
     d = json.loads(final.read_text())
     data = convert(d, a.curve, 0.5, 0.0, 65.0, a.dpi)

@@ -1,25 +1,33 @@
 #!/usr/bin/env python3
-"""Refine strokes top-down: start from a coarse 4-point spline and
-subdivide intervals until the curve matches the traced line.
+"""Refine strokes top-down: start from the straight line between a
+piece's endpoints and subdivide intervals until the curve matches
+the traced line.
 
 Instead of judging curvature from neighbouring samples (noisy), the
-hierarchy discovers it: a stroke piece starts as 4 control points on
-the original line (both ends plus the arc-length thirds). Each of
-the 3 intervals is checked against the original samples inside it;
-an interval that deviates more than --tol is split in two by adding
-the original sample nearest its arc midpoint as a new control point
-(on the line, with its original radius). Rounds repeat until every
-interval matches. Gentle regions stay coarse, tight regions refine
-down — subdivision depth is the multi-scale curvature measure.
+hierarchy discovers it: a stroke piece starts as the 2 endpoint
+control points (--init 4 seeds the arc-length thirds as well, with
+no measured benefit). Each interval is checked against the original
+samples inside it; an interval that deviates more than --tol is
+split in two by adding the original sample nearest its arc midpoint
+as a new control point (on the line, with its original radius).
+Rounds repeat until every interval matches. Gentle regions stay
+coarse, tight regions refine down — subdivision depth is the
+multi-scale curvature measure. Closed strokes are seeded with 4
+points around the loop (2 would degenerate) and refined cyclically.
 
 Sharp corners (>= --corner-deg) split the stroke into pieces first,
 as in thin_strokes.py, so corners stay corners. An optional radius
 criterion (--eps-r) also splits an interval whose linearly
 interpolated radius deviates from the traced radii too much.
 
+The defaults are deliberately conservative (tol 0.3 px, eps_r
+0.15 px): the result barely deviates from the traced line. Raise
+--tol to smooth the stroke shape more, raise --eps-r to smooth the
+line-width (brush size) variation more; both are in pixels.
+
 Usage:
   python refine_strokes.py strokes_chained.json -o strokes_ref.json
-  python refine_strokes.py in.json -o out.json --tol 1.5
+  python refine_strokes.py in.json -o out.json --tol 1.5 --eps-r 0.35
 """
 import argparse, json
 from pathlib import Path
@@ -61,7 +69,7 @@ def span_deviation(ctrl_xy, k, samp_xy, samp_arc, a0, a1):
     return float(d.min(axis=1).max()), sel
 
 
-def refine_piece(xy, r, tol, eps_r, init=4):
+def refine_piece(xy, r, tol, eps_r, init=2):
     """xy, r: one corner-free piece (open). Returns control indices."""
     n = len(xy)
     if n <= 4:
@@ -161,7 +169,7 @@ def refine_closed(xy, r, tol, eps_r):
     return ctrl
 
 
-def refine_stroke(stroke, tol, eps_r, corner_deg, init=4):
+def refine_stroke(stroke, tol, eps_r, corner_deg, init=2):
     pts = stroke["points"]
     xy = np.array([[p["x"], p["y"]] for p in pts], dtype=float)
     r = np.array([p["r"] for p in pts], dtype=float)
@@ -185,12 +193,12 @@ def main():
     ap = argparse.ArgumentParser(description="top-down subdivision refinement of strokes")
     ap.add_argument("input")
     ap.add_argument("-o", "--output", required=True)
-    ap.add_argument("--tol", type=float, default=0.75,
+    ap.add_argument("--tol", type=float, default=0.3,
                     help="max allowed deviation from the traced line, px")
-    ap.add_argument("--eps-r", type=float, default=0.35,
+    ap.add_argument("--eps-r", type=float, default=0.15,
                     help="max allowed radius deviation, px (0 = off)")
     ap.add_argument("--corner-deg", type=float, default=50.0)
-    ap.add_argument("--init", type=int, default=4, choices=[2, 4],
+    ap.add_argument("--init", type=int, default=2, choices=[2, 4],
                     help="seed control points per open piece (2 = straight line)")
     a = ap.parse_args()
 
