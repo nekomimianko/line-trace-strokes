@@ -4,9 +4,10 @@
 Runs the whole pipeline with the measured-good defaults:
 
   line_trace.py (medial-axis) -> subpixel_refine.py (EDT centroid +
-  radius re-sampling) -> chain_strokes.py -> refine_strokes.py
-  (top-down subdivision thinning, conservative defaults) ->
-  clipvec import
+  radius re-sampling) -> chain_strokes.py -> filter_radius.py
+  (drop points too thick to be lines; solid areas are handled
+  separately) -> refine_strokes.py (top-down subdivision thinning,
+  conservative defaults) -> clipvec import
 
 and writes a .clip whose vector layer carries every stroke with its
 per-point line width, ready to edit in CLIP STUDIO PAINT.
@@ -36,6 +37,10 @@ Options:
   --eps-r PX   line-width tolerance of the thinning step (default
                0.15 px; raise it to smooth brush-size variation more)
   --no-refine  skip refine_strokes.py (keep every traced point)
+  --max-r-rel FRAC  radius filter: drop points whose radius exceeds
+               FRAC x the longer image side (default 0.01); such points
+               are solid-fill scaffolding, not lines
+  --no-radius-filter  skip filter_radius.py
   --keep-work DIR  keep the intermediate JSONs in DIR for inspection
 
 Examples:
@@ -101,6 +106,8 @@ def main():
     ap.add_argument("--tol", type=float, default=0.3)
     ap.add_argument("--eps-r", type=float, default=0.15)
     ap.add_argument("--no-refine", action="store_true")
+    ap.add_argument("--max-r-rel", type=float, default=0.01)
+    ap.add_argument("--no-radius-filter", action="store_true")
     ap.add_argument("--keep-work", help="directory for intermediate JSONs (default: temp)")
     a = ap.parse_args()
 
@@ -125,6 +132,11 @@ def main():
         chained = work / "strokes_chained.json"
         run([py, HERE / "chain_strokes.py", sub, "-o", chained])
         final = chained
+    if not a.no_radius_filter:
+        filtered = work / "strokes_filtered.json"
+        run([py, HERE / "filter_radius.py", final, "-o", filtered,
+             "--max-r-rel", str(a.max_r_rel)])
+        final = filtered
     if not a.no_refine:
         refined = work / "strokes_refined.json"
         run([py, HERE / "refine_strokes.py", final, "-o", refined,
