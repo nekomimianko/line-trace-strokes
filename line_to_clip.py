@@ -10,11 +10,12 @@ and writes a .clip whose vector layer carries every stroke with its
 per-point line width, ready to edit in CLIP STUDIO PAINT.
 
 The .clip writing itself is done by the companion project `clipvec`
-(.clip format library, https://github.com/nekomimianko/clipvec).
-This script looks for it, in order: --clipvec PATH, $CLIPVEC_PATH,
-an importable `clipvec` package, ../clipvec, ./clipvec (the two
-repositories cloned side by side). If none is found it prints the
-clone command and stops.
+(.clip format library, https://github.com/nekomimianko/clipvec),
+which ships inside this repository as a git submodule in ./clipvec
+(fetch it with `git clone --recursive` or `git submodule update
+--init`). This script looks for it, in order: --clipvec PATH,
+$CLIPVEC_PATH, ./clipvec, ../clipvec, an importable `clipvec`
+package. If none is found it prints how to fetch it and stops.
 
 Mapping into CSP (same as clipvec/tools/from_line_trace.py): pressure
 is fixed at 1.0, the stroke radius is the stroke's maximum traced
@@ -46,7 +47,7 @@ def find_clipvec(explicit):
         candidates.append(Path(explicit))
     if os.environ.get("CLIPVEC_PATH"):
         candidates.append(Path(os.environ["CLIPVEC_PATH"]))
-    candidates += [HERE.parent / "clipvec", HERE / "clipvec"]
+    candidates += [HERE / "clipvec", HERE.parent / "clipvec"]
     for c in candidates:
         if (c / "clipvec" / "document.py").is_file():
             return c
@@ -56,9 +57,10 @@ def find_clipvec(explicit):
     except ImportError:
         pass
     raise SystemExit(
-        "clipvec not found. Clone it next to this repository:\n"
-        "  git clone https://github.com/nekomimianko/clipvec\n"
-        "or pass --clipvec PATH / set CLIPVEC_PATH.")
+        "clipvec not found. It ships as a submodule of this repository:\n"
+        "  git submodule update --init\n"
+        "(or clone https://github.com/nekomimianko/clipvec into ./clipvec,\n"
+        "or pass --clipvec PATH / set CLIPVEC_PATH.)")
 
 
 def load_bridge(clipvec_root):

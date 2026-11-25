@@ -14,13 +14,16 @@
 ## 使い方：画像から .clip を作る
 
 ```bash
-git clone https://github.com/nekomimianko/line-trace-strokes
-git clone https://github.com/nekomimianko/clipvec   # .clip 書き出しライブラリ（隣に置く）
+git clone --recursive https://github.com/nekomimianko/line-trace-strokes
 cd line-trace-strokes
 python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow shapely
 
 .venv/bin/python line_to_clip.py input.png -o output.clip
 ```
+
+（`--recursive` は .clip 書き出しライブラリ clipvec を配下の `clipvec/`
+フォルダにサブモジュールとして一緒に持ってくる指定。既に clone 済みの
+場合は `git submodule update --init` で後からでも入る。）
 
 これだけで、実測で詰めた既定値のまま全工程（トレース → サブピクセル化 →
 チェイン化 → .clip 化）が走る。パラメータをいじる必要は基本的にない。
@@ -30,7 +33,7 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow sh
 - Blender グリースペンシルで使いたい場合は、できた .clip を clipvec の
   Blender アドオン（io_clip_vector）でインポートできる。
 - clipvec の場所は `--clipvec PATH` / 環境変数 `CLIPVEC_PATH` でも指定できる。
-  見つからない場合は clone 先が案内される。
+  見つからない場合は取得方法が案内される。
 
 ## テスト結果（アニメ風線画 1120×2240）
 

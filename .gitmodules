@@ -1,0 +1,3 @@
+[submodule "clipvec"]
+	path = clipvec
+	url = https://github.com/nekomimianko/clipvec.git
