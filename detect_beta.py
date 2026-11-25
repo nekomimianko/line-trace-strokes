@@ -126,7 +126,7 @@ def contours_band(union, band_depth, radius, work):
     return strokes
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description="Detect solid (beta) regions and extract their contours")
     ap.add_argument("image")
     ap.add_argument("-o", "--output", required=True, help="region mask image (black = region)")
@@ -142,7 +142,7 @@ def main():
                     help="stroke radius of contour lines in px (default 1.0)")
     ap.add_argument("--regions-json", help="write region metadata here")
     ap.add_argument("--contours-out", help="write contour strokes JSON here")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     img = np.asarray(Image.open(args.image).convert("L"))
     mask = img <= args.threshold

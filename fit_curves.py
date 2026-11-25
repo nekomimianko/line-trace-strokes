@@ -220,7 +220,7 @@ def build_paths(d, offset, end_range, eps_mid, eps_anchor, eps_short, quad_segs)
     return all_paths, tot_ctrl
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("strokes")
     ap.add_argument("-o", "--output", required=True)
@@ -233,7 +233,7 @@ def main():
                     help="fitting tolerance inside the end zones")
     ap.add_argument("--eps-short", type=float, default=0.1,
                     help="fitting tolerance for strokes that are all end zone")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     d = json.loads(Path(a.strokes).read_text())
     W, H = d["image"]["width"], d["image"]["height"]
     paths, n_ctrl = build_paths(d, a.radius_offset, a.end_range,

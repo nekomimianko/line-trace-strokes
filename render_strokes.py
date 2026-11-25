@@ -117,7 +117,7 @@ def assess(reference_mask, output_image, difference_path=None, overlay_path=None
     return result
 
 
-def main():
+def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('json_file', type=Path, help='variable-radius-strokes JSON file')
@@ -137,7 +137,7 @@ def main():
                    help='Radius adjustment (default: -0.5 px, as in tracer preview)')
     p.add_argument('--min-radius', type=float, default=0.2,
                    help='Minimum brush radius (default: 0.2 px)')
-    args = p.parse_args()
+    args = p.parse_args(argv)
     if args.scale < 1 or args.scale > 10 or args.step <= 0 or args.min_radius < 0:
         p.error('Use 1 <= --scale <= 10, --step > 0, --min-radius >= 0')
     if (args.difference or args.overlay or args.metrics) and not args.reference:

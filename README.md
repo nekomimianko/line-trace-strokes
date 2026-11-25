@@ -60,6 +60,31 @@ tol を上げると線の通り道そのものが単純になる（瞳の放射�
 - clipvec の場所は `--clipvec PATH` / 環境変数 `CLIPVEC_PATH` でも指定できる。
   見つからない場合は取得方法が案内される。
 
+## GUI（Windows 向け、exe 配布）
+
+`line_to_clip_gui.py` は上記の全工程をそのまま使う薄い GUI ラッパー。
+画像をドラッグ＆ドロップするとプレビューが出て、主要パラメータ
+（二値化しきい値、間引きの許容誤差、ベタ判定の深さなど）だけを設定して
+変換できる。変換後は線＋ベタ塗りの合成プレビューが表示される。
+
+配布用 exe は PyInstaller で作る（Python 環境ごと同梱される）：
+
+```powershell
+git clone --recursive https://github.com/nekomimianko/line-trace-strokes
+cd line-trace-strokes
+python -m venv .venv-build
+.\.venv-build\Scripts\Activate.ps1
+pip install -r requirements.txt pyinstaller
+.\build_windows.ps1
+# -> dist\LineToClip\LineToClip.exe（フォルダごと zip して配布）
+```
+
+動作確認はウィンドウなしでもできる：
+
+```
+LineToClip.exe --selftest input.png output.clip
+```
+
 ## テスト結果（アニメ風線画 1120×2240）
 
 左が元の線画、中央がストローク JSON **だけ** から復元した画像、右が誤差の重ね合わせ

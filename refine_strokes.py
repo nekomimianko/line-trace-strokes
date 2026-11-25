@@ -189,7 +189,7 @@ def refine_stroke(stroke, tol, eps_r, corner_deg, init=2):
     return [pts[i] for i in keep]
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description="top-down subdivision refinement of strokes")
     ap.add_argument("input")
     ap.add_argument("-o", "--output", required=True)
@@ -200,7 +200,7 @@ def main():
     ap.add_argument("--corner-deg", type=float, default=50.0)
     ap.add_argument("--init", type=int, default=2, choices=[2, 4],
                     help="seed control points per open piece (2 = straight line)")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     d = json.loads(Path(a.input).read_text())
     total_in = total_out = 0

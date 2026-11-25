@@ -286,7 +286,7 @@ def preview_images(prefix, mask, strokes, preview_step=0.35, scale=3):
             'excess_ink_pixels': int(extra.sum())}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('image', type=Path, help='Input raster image (PNG/JPEG/etc)')
@@ -305,7 +305,7 @@ def main():
                         help='Greedy stroke sequencing to reduce empty pen movement')
     parser.add_argument('--preview-prefix', type=Path,
                         help='Save binary, paths, reconstructed, and difference PNGs')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not args.image.is_file():
         parser.error(f'Image not found: {args.image}')
     if not 0 <= args.threshold <= 255:

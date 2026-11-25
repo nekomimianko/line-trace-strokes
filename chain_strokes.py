@@ -27,14 +27,14 @@ def end_dir(points, side, look=5):
     n = math.hypot(vx, vy)
     return (vx/n, vy/n) if n > 0 else None
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('json_file', type=Path)
     ap.add_argument('-o', '--output', type=Path, default=Path('strokes_chained.json'))
     ap.add_argument('--max-dot', type=float, default=-0.3,
                     help='Pair ends only if dot(dir_in_a, dir_in_b) <= this '
                          '(-1 = perfectly straight through the junction)')
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     data = json.loads(args.json_file.read_text())
     strokes = data['strokes']

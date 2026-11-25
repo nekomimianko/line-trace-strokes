@@ -60,7 +60,7 @@ Examples:
   python line_to_clip.py input.png -o output.clip
   python line_to_clip.py input.png -o output.clip --svg output.svg
 """
-import argparse, importlib.util, json, os, subprocess, sys, tempfile
+import argparse, importlib.util, json, os, sys, tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -101,12 +101,20 @@ def load_bridge(clipvec_root):
     return mod.convert
 
 
-def run(cmd):
-    print("+", " ".join(str(c) for c in cmd))
-    subprocess.run([str(c) for c in cmd], check=True)
+def stage(modname, *args):
+    """Run a pipeline stage in-process. A frozen (PyInstaller) exe has
+    no Python interpreter to subprocess to, so stages are imported and
+    their main(argv) is called directly; on a normal interpreter this
+    behaves exactly like the old subprocess chain."""
+    import importlib
+    mod = importlib.import_module(modname)
+    print("+", modname, *[str(x) for x in args])
+    rc = mod.main([str(x) for x in args])
+    if rc:
+        raise SystemExit(rc)
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description="raster line art -> .clip vector layer")
     ap.add_argument("image")
     ap.add_argument("-o", "--output", required=True, help="output .clip path")
@@ -128,7 +136,7 @@ def main():
     ap.add_argument("--no-fill-layer", action="store_true",
                     help="do not add the black fill raster layer under the vector layer")
     ap.add_argument("--keep-work", help="directory for intermediate JSONs (default: temp)")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     clipvec_root = find_clipvec(a.clipvec)
     if clipvec_root is not None:
@@ -139,41 +147,40 @@ def main():
 
     work = Path(a.keep_work) if a.keep_work else Path(tempfile.mkdtemp(prefix="line_to_clip_"))
     work.mkdir(parents=True, exist_ok=True)
-    py = sys.executable
     raw = work / "strokes.json"
     sub = work / "strokes_subpixel.json"
-    run([py, HERE / "line_trace.py", a.image, "-o", raw,
-         "--method", "medial-axis", "--threshold", a.threshold])
-    run([py, HERE / "subpixel_refine.py", a.image, raw, "-o", sub,
-         "--threshold", a.threshold])
+    stage("line_trace", a.image, "-o", raw,
+         "--method", "medial-axis", "--threshold", a.threshold)
+    stage("subpixel_refine", a.image, raw, "-o", sub,
+         "--threshold", a.threshold)
     final = sub
     if not a.no_chain:
         chained = work / "strokes_chained.json"
-        run([py, HERE / "chain_strokes.py", sub, "-o", chained])
+        stage("chain_strokes", sub, "-o", chained)
         final = chained
     contours = None
     if not a.no_beta:
         mask_png = work / "beta_mask.png"
         contours_json = work / "beta_contours.json"
-        run([py, HERE / "detect_beta.py", a.image, "-o", mask_png,
+        stage("detect_beta", a.image, "-o", mask_png,
              "--threshold", a.threshold, "--depth", a.beta_depth,
              "--min-region-area", a.min_region_area,
              "--contour-radius", a.contour_radius,
-             "--contours-out", contours_json])
+             "--contours-out", contours_json)
         trimmed = work / "strokes_trimmed.json"
-        run([py, HERE / "trim_strokes.py", final, "--mask", mask_png,
-             "-o", trimmed, "--threshold", a.threshold])
+        stage("trim_strokes", final, "--mask", mask_png,
+             "-o", trimmed, "--threshold", a.threshold)
         final = trimmed
         contours = contours_json
     if not a.no_refine:
         refined = work / "strokes_refined.json"
-        run([py, HERE / "refine_strokes.py", final, "-o", refined,
-             "--tol", a.tol, "--eps-r", a.eps_r])
+        stage("refine_strokes", final, "-o", refined,
+             "--tol", a.tol, "--eps-r", a.eps_r)
         final = refined
         if contours is not None:
             contours_ref = work / "beta_contours_refined.json"
-            run([py, HERE / "refine_strokes.py", contours, "-o", contours_ref,
-                 "--tol", a.contour_tol, "--eps-r", a.contour_eps_r])
+            stage("refine_strokes", contours, "-o", contours_ref,
+                 "--tol", a.contour_tol, "--eps-r", a.contour_eps_r)
             contours = contours_ref
 
     d = json.loads(final.read_text())
@@ -206,7 +213,7 @@ def main():
     print(f"{a.output}: {n_strokes} strokes, {n_points} points, curve={a.curve}")
 
     if a.svg:
-        run([py, HERE / "fit_curves.py", final, "-o", a.svg])
+        stage("fit_curves", final, "-o", a.svg)
     if not a.keep_work:
         print(f"(intermediates in {work}, delete when done)")
 

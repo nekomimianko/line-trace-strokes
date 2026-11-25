@@ -86,13 +86,13 @@ def trim_stroke(points, field):
     return runs, crossings
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description="Trim strokes at solid-region contours")
     ap.add_argument("json_file")
     ap.add_argument("--mask", required=True, help="image of the solid regions (dark = region)")
     ap.add_argument("--threshold", type=int, default=180)
     ap.add_argument("-o", "--output", required=True)
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     mask_img = np.asarray(Image.open(args.mask).convert("L"))
     mask = mask_img <= args.threshold

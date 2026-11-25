@@ -77,7 +77,7 @@ def refine_stroke(pts, closed, field, clamp, edt_field=None):
     return out_pts, shifts
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Sub-pixel center refinement of traced strokes")
     ap.add_argument("image", help="original raster image (grayscale source)")
     ap.add_argument("strokes", help="input variable-radius-strokes JSON")
@@ -85,7 +85,7 @@ def main() -> int:
     ap.add_argument("--mode", choices=["edt", "gray"], default="edt")
     ap.add_argument("--threshold", type=int, default=180, help="ink threshold for the binary mask (edt mode)")
     ap.add_argument("--clamp", type=float, default=0.6, help="max center shift in px")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     gray = np.asarray(Image.open(args.image).convert("L")).astype(np.float64)
     edt_field = distance_transform_edt(gray <= args.threshold)
