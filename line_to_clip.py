@@ -4,10 +4,18 @@
 Runs the whole pipeline with the measured-good defaults:
 
   line_trace.py (medial-axis) -> subpixel_refine.py (EDT centroid +
-  radius re-sampling) -> chain_strokes.py -> filter_radius.py
-  (drop points too thick to be lines; solid areas are handled
-  separately) -> refine_strokes.py (top-down subdivision thinning,
-  conservative defaults) -> clipvec import
+  radius re-sampling) -> chain_strokes.py -> detect_beta.py (solid
+  "beta" regions + their contours) -> trim_strokes.py (line strokes
+  are cut exactly at the region contours) -> refine_strokes.py
+  (top-down subdivision thinning, conservative defaults; contours
+  are thinned as closed curves with a looser tolerance) -> clipvec
+  import
+
+Solid regions are NOT filled in the .clip (provisional format
+decision): everything stays a line, as before, and a solid region is
+represented by its contour as a closed stroke. The region marking
+survives in the intermediate JSON (`role: "fill_contour"`), so a
+future fill representation can be built on it.
 
 and writes a .clip whose vector layer carries every stroke with its
 per-point line width, ready to edit in CLIP STUDIO PAINT.
@@ -37,10 +45,13 @@ Options:
   --eps-r PX   line-width tolerance of the thinning step (default
                0.15 px; raise it to smooth brush-size variation more)
   --no-refine  skip refine_strokes.py (keep every traced point)
-  --max-r-rel FRAC  radius filter: drop points whose radius exceeds
-               FRAC x the longer image side (default 0.01); such points
-               are solid-fill scaffolding, not lines
-  --no-radius-filter  skip filter_radius.py
+  --no-beta    skip beta detection/trim (plain line trace, no
+               contour strokes; pure line art is barely affected)
+  --beta-depth PX  core depth for beta detection (default 6 px;
+               solids must be locally 2x this wide; thick-line
+               assumption, absolute px by design)
+  --contour-tol PX  thinning tolerance for contour curves
+               (default 0.75 px; fills forgive more than lines)
   --keep-work DIR  keep the intermediate JSONs in DIR for inspection
 
 Examples:
@@ -106,8 +117,12 @@ def main():
     ap.add_argument("--tol", type=float, default=0.3)
     ap.add_argument("--eps-r", type=float, default=0.15)
     ap.add_argument("--no-refine", action="store_true")
-    ap.add_argument("--max-r-rel", type=float, default=0.01)
-    ap.add_argument("--no-radius-filter", action="store_true")
+    ap.add_argument("--no-beta", action="store_true")
+    ap.add_argument("--beta-depth", type=float, default=6.0)
+    ap.add_argument("--min-region-area", type=int, default=200)
+    ap.add_argument("--contour-tol", type=float, default=0.75)
+    ap.add_argument("--contour-eps-r", type=float, default=0.35)
+    ap.add_argument("--contour-radius", type=float, default=1.0)
     ap.add_argument("--keep-work", help="directory for intermediate JSONs (default: temp)")
     a = ap.parse_args()
 
@@ -132,18 +147,41 @@ def main():
         chained = work / "strokes_chained.json"
         run([py, HERE / "chain_strokes.py", sub, "-o", chained])
         final = chained
-    if not a.no_radius_filter:
-        filtered = work / "strokes_filtered.json"
-        run([py, HERE / "filter_radius.py", final, "-o", filtered,
-             "--max-r-rel", str(a.max_r_rel)])
-        final = filtered
+    contours = None
+    if not a.no_beta:
+        mask_png = work / "beta_mask.png"
+        contours_json = work / "beta_contours.json"
+        run([py, HERE / "detect_beta.py", a.image, "-o", mask_png,
+             "--threshold", a.threshold, "--depth", a.beta_depth,
+             "--min-region-area", a.min_region_area,
+             "--contour-radius", a.contour_radius,
+             "--contours-out", contours_json])
+        trimmed = work / "strokes_trimmed.json"
+        run([py, HERE / "trim_strokes.py", final, "--mask", mask_png,
+             "-o", trimmed, "--threshold", a.threshold])
+        final = trimmed
+        contours = contours_json
     if not a.no_refine:
         refined = work / "strokes_refined.json"
         run([py, HERE / "refine_strokes.py", final, "-o", refined,
              "--tol", a.tol, "--eps-r", a.eps_r])
         final = refined
+        if contours is not None:
+            contours_ref = work / "beta_contours_refined.json"
+            run([py, HERE / "refine_strokes.py", contours, "-o", contours_ref,
+                 "--tol", a.contour_tol, "--eps-r", a.contour_eps_r])
+            contours = contours_ref
 
     d = json.loads(final.read_text())
+    if contours is not None:
+        cd = json.loads(Path(contours).read_text())
+        for s in cd["strokes"]:
+            if s.get("closed") and s["points"]:
+                s = dict(s, points=s["points"] + [s["points"][0]])
+            d["strokes"].append(s)
+        merged = work / "strokes_merged.json"
+        merged.write_text(json.dumps(d))
+        final = merged
     data = convert(d, a.curve, 0.5, 0.0, 65.0, a.dpi)
     doc = ClipDocument.new(d["image"]["width"], d["image"]["height"], a.dpi)
     first = doc.vector_layers()[0]

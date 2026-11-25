@@ -26,7 +26,7 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow sh
 場合は `git submodule update --init` で後からでも入る。）
 
 これだけで、実測で詰めた既定値のまま全工程（トレース → サブピクセル化 →
-チェイン化 → 半径フィルタ → 間引き → .clip 化）が走る。パラメータをいじる必要は基本的にない。
+チェイン化 → ベタ検出 → 輪郭での切り取り → 間引き → .clip 化）が走る。パラメータをいじる必要は基本的にない。
 
 ### 間引きについて
 
@@ -89,7 +89,8 @@ tol を上げると線の通り道そのものが単純になる（瞳の放射�
 variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク列）
   │  subpixel_refine.py 中心を EDT 重心でサブピクセル化（標準工程）
   │  chain_strokes.py   分岐点で端点を直進ペアリングして連結（任意）
-  │  filter_radius.py   半径が大きすぎる点の除去（標準工程）
+  │  detect_beta.py     黒ベタ領域の検出と輪郭の抽出（標準工程）
+  │  trim_strokes.py    ベタ輪郭でストロークを切り取る（標準工程）
   │  refine_strokes.py  階層細分による間引き（標準工程、控えめな既定値）
   │  prune_strokes.py   ごく短いストロークの除去（任意、チェインの後に）
   ▼
@@ -117,10 +118,15 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
   近い相手」でペアリングし、ストロークを連結する。幾何には触らないので
   復元結果は変わらない（下記検証）。繋がらなかった短いストローク
   （棘・点・毛先の破片）は独立したまま残る。
-- `filter_radius.py` — 半径がしきい値（既定は画像の長い辺の1%）を
-  超える点を除去し、その位置でストロークを分割する（標準工程）。
-  大きすぎる半径の点は線の標本ではなく黒ベタ内部の足場であり、
-  線として不正なため取り除く。
+- `detect_beta.py` — 黒ベタ領域（フィル領域）の検出と輪郭の抽出（標準工程）。
+  距離変換で芯（既定は深さ 6px、絶対指定）を取り、各芯からマスク内だけを
+  伝う測地膨張で領域を主張させる。ベタの輪郭は元のインク境界と一致し、
+  付着した線は根元から深さぶんまでしか主張されない。輪郭は境界多角形を
+  閉ストロークとして出し、`role: "fill_contour"` のマークを付ける。
+- `trim_strokes.py` — ベタ領域の輪郭でストロークを切り取る（標準工程）。
+  符号付き距離場で内外を判定し、輪郭との交点に新しい制御点（＝新しい
+  端点）を挿入して、内側の点をすべて除去する。領域をまたぐ線は輪郭に
+  きれいに着地し、ベタ内部の足場ストロークは消える。
 - `prune_strokes.py` — 点数が閾値以下のストロークを除去する。
   チェイン化の後に使うこと（理由は下記の除去実験）。
 - `refine_strokes.py` — 制御点の間引き（標準工程）。ストロークを
@@ -439,7 +445,7 @@ IoU はスプライン描画での復元値。密トレース自体の上限は 
 ## ファイル
 
 - `line_to_clip.py` / `line_trace.py` / `render_strokes.py` / `subpixel_refine.py` /
-  `chain_strokes.py` / `filter_radius.py` / `prune_strokes.py` / `refine_strokes.py` / `thin_strokes.py` /
+  `chain_strokes.py` / `detect_beta.py` / `trim_strokes.py` / `prune_strokes.py` / `refine_strokes.py` / `thin_strokes.py` /
   `stabilize_strokes.py` / `smooth_strokes.py` / `svg_export.py` /
   `fit_curves.py` / `render_smooth.py` — 本体
 - `examples/anime/` — テスト入力・トレース結果 JSON（未チェイン／チェイン済み）・
