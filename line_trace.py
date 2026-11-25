@@ -38,7 +38,10 @@ def load_mask(path: Path, threshold: int, invert: bool) -> np.ndarray:
 
 def binary_skeleton(mask: np.ndarray, method: str) -> np.ndarray:
     if method == 'medial-axis':
-        return medial_axis(mask)
+        # rng must be fixed: with rng=None, medial_axis seeds from OS
+        # entropy and the skeleton (hence stroke counts) drifts by
+        # ~0.1% from run to run.
+        return medial_axis(mask, rng=0)
     return skeletonize(mask)
 
 

@@ -2,9 +2,35 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-ラスター線画を「可変半径ストローク」の JSON に変換し、JSON だけから画像を復元する一式。
-さらに、交点で粉砕された短いストロークを方向の連続性で繋ぎ直すチェイン化により、
-データを保ったまま編集しやすい形にする。
+ラスター線画を読み取り、**CLIP STUDIO PAINT のベクターレイヤー（.clip）**に
+変換する一式。線は1本ずつ、線幅の変化（テーパー）つきでベクターになるので、
+クリスタ上でそのまま編集できる。
+
+内部では線画を「可変半径ストローク」の JSON に変換し、交点で粉砕された
+短いストロークを方向の連続性で繋ぎ直すチェイン化により、データを保ったまま
+編集しやすい形にしている。.clip の読み書き自体は姉妹プロジェクト
+[clipvec](https://github.com/nekomimianko/clipvec) が担う。
+
+## 使い方：画像から .clip を作る
+
+```bash
+git clone https://github.com/nekomimianko/line-trace-strokes
+git clone https://github.com/nekomimianko/clipvec   # .clip 書き出しライブラリ（隣に置く）
+cd line-trace-strokes
+python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow shapely
+
+.venv/bin/python line_to_clip.py input.png -o output.clip
+```
+
+これだけで、実測で詰めた既定値のまま全工程（トレース → サブピクセル化 →
+チェイン化 → .clip 化）が走る。パラメータをいじる必要は基本的にない。
+
+- `--svg output.svg` を付けると、曲線フィッティング済みの輪郭 SVG も
+  同時に出る（後述の `fit_curves.py`）。
+- Blender グリースペンシルで使いたい場合は、できた .clip を clipvec の
+  Blender アドオン（io_clip_vector）でインポートできる。
+- clipvec の場所は `--clipvec PATH` / 環境変数 `CLIPVEC_PATH` でも指定できる。
+  見つからない場合は clone 先が案内される。
 
 ## テスト結果（アニメ風線画 1120×2240）
 
@@ -47,6 +73,9 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
 - `line_trace.py` — グレースケール ≤180 で二値化し、`skeletonize` または
   `medial_axis` で中心線を取り、元の二値マスクの距離変換 (EDT) から各点の半径 `r` を拾う。
   骨格グラフを次数≠2 の点（端点・分岐点）で分割してストローク化する。
+  medial_axis は `rng=0` 固定（未指定だと OS エントロピーで骨格が毎回わずかに揺れる）。
+- `line_to_clip.py` — 代表スクリプト。画像を入れるだけで既定値の全工程を
+  実行し、.clip を出す（冒頭の「使い方」参照）。
 - `render_strokes.py` — JSON のみから、各点を 0.35px 間隔で補間しながら
   半径 `r − 0.5` の円をスタンプし、3倍解像度から縮小して AA を付ける。
   `--reference` を付けると元画像との IoU・欠損・過剰を測れる。
@@ -64,11 +93,9 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
 - `render_smooth.py` — 実験版の復元。Catmull-Rom 補間で中心線を滑らかにして
   なぞる。画素周期のジッター対策の検証用（本筋は上記3本）。
 
-## 使い方
+## 使い方（工程を分けて使う場合）
 
 ```bash
-python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow shapely
-
 # トレース (medial-axis 推奨)
 .venv/bin/python line_trace.py input.png -o strokes.json --method medial-axis --preview-prefix medial
 
@@ -310,16 +337,17 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow sh
 
 ## 今後の候補
 
-- 本物の .clip 変換：半径付きベクターレイヤーを、.clip 内蔵の SQLite
-  スキーマ経由で直接書く。
+- 中心線の間引き：現状は標本点がそのまま制御点になる（テスト画で
+  115,551 点）ため、クリスタ上での手編集には密すぎる。.clip 化の前に
+  誤差 ε 以内で点数を減らす工程が次のレバー。
 - 最小二乗ベジェ当てはめ（Schneider 法）：同じ ε をより少ない
   セグメントで達成し、曲線化の圧縮率を上げる。
 
 ## ファイル
 
-- `line_trace.py` / `render_strokes.py` / `subpixel_refine.py` / `chain_strokes.py` /
-  `prune_strokes.py` / `smooth_strokes.py` / `svg_export.py` / `fit_curves.py` /
-  `render_smooth.py` — 本体
+- `line_to_clip.py` / `line_trace.py` / `render_strokes.py` / `subpixel_refine.py` /
+  `chain_strokes.py` / `prune_strokes.py` / `smooth_strokes.py` / `svg_export.py` /
+  `fit_curves.py` / `render_smooth.py` — 本体
 - `examples/anime/` — テスト入力・トレース結果 JSON（未チェイン／チェイン済み）・
   復元・比較画像
 
