@@ -11,11 +11,13 @@ Runs the whole pipeline with the measured-good defaults:
   are thinned as closed curves with a looser tolerance) -> clipvec
   import
 
-Solid regions are NOT filled in the .clip (provisional format
-decision): everything stays a line, as before, and a solid region is
-represented by its contour as a closed stroke. The region marking
-survives in the intermediate JSON (`role: "fill_contour"`), so a
-future fill representation can be built on it.
+The vector data itself stays all lines, as before: a solid region is
+represented in the vector layer by its contour as a closed stroke.
+In addition, the package includes a raster layer under the vector
+layer holding the regions filled in black (transparent elsewhere),
+so the file displays as the complete picture in CSP while the
+vector layer remains fully editable. The region marking also
+survives in the intermediate JSON (`role: "fill_contour"`).
 
 and writes a .clip whose vector layer carries every stroke with its
 per-point line width, ready to edit in CLIP STUDIO PAINT.
@@ -123,6 +125,8 @@ def main():
     ap.add_argument("--contour-tol", type=float, default=0.75)
     ap.add_argument("--contour-eps-r", type=float, default=0.35)
     ap.add_argument("--contour-radius", type=float, default=1.0)
+    ap.add_argument("--no-fill-layer", action="store_true",
+                    help="do not add the black fill raster layer under the vector layer")
     ap.add_argument("--keep-work", help="directory for intermediate JSONs (default: temp)")
     a = ap.parse_args()
 
@@ -187,6 +191,15 @@ def main():
     first = doc.vector_layers()[0]
     data["layers"][0] = dict(data["layers"][0], id=first.layer_id)
     apply_dict(doc, data, replace=True)
+    if contours is not None and not a.no_fill_layer:
+        import numpy as np
+        from PIL import Image
+        region = np.asarray(Image.open(mask_png).convert("L")) <= a.threshold
+        if region.any():
+            rgba = np.zeros((*region.shape, 4), np.uint8)
+            rgba[region] = (0, 0, 0, 255)
+            doc.add_raster_layer("ベタ塗り", rgba, below=first.layer_id)
+            print(f"fill raster layer: {int(region.sum())} px under the vector layer")
     doc.save(a.output)
     n_strokes = len(d["strokes"])
     n_points = sum(len(s["points"]) for s in d["strokes"])
