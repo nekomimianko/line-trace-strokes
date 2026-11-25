@@ -311,7 +311,7 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow sh
 ## 今後の候補
 
 - 本物の .clip 変換：半径付きベクターレイヤーを、.clip 内蔵の SQLite
-  スキーマ経由で直接書く。フォーマット解析文書の所在確認が前提。
+  スキーマ経由で直接書く。
 - 最小二乗ベジェ当てはめ（Schneider 法）：同じ ε をより少ない
   セグメントで達成し、曲線化の圧縮率を上げる。
 
