@@ -1,5 +1,7 @@
 # line-trace-strokes
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ラスター線画を「可変半径ストローク」の JSON に変換し、JSON だけから画像を復元する一式。
 さらに、交点で粉砕された短いストロークを方向の連続性で繋ぎ直すチェイン化により、
 データを保ったまま編集しやすい形にする。
@@ -125,3 +127,8 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
 - `line_trace.py` / `render_strokes.py` / `chain_strokes.py` / `render_smooth.py` — 本体
 - `examples/anime/` — テスト入力・トレース結果 JSON（未チェイン／チェイン済み）・
   復元・比較画像
+
+## ライセンス
+
+MIT License（`LICENSE` 参照）。概念実証のための実装であり、手法自体は
+骨格化・距離変換に基づく古典的なものである。自由に使ってよい。
