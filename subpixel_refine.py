@@ -13,13 +13,17 @@ Usage:
 - mode 'edt' (既定・推奨): 重みは二値マスクの距離変換 (EDT)。
   線の塊の中での中心を素直に表し、アニメ線画テストで IoU 93.43% → 95.90%。
 - mode 'gray': 重みはグレー濃度。中心線の凹凸は最も減るが、隣接線や AA に
-  引っ張られて IoU はほぼ改善しない (93.46%)。比較用。
+  引っ張られて IoU はほぼ改善しない (93.46%)。比較用 (半径は据え置き)。
 - 端点は寄せない (交点の接続を保つ)。寄せ量は ±0.6px にクランプ。
-- 半径は変更しない。濃度プロファイルの FWHM からの半径再推定は
-  ベタ部の plateau で壊れることを確認済み (IoU 75.95%) のため不採用。
 
-中心を直すと復元時の半径オフセットの最適も -0.5 → -0.4 に移る
- (render_strokes.py --radius-offset -0.4 で IoU 96.91%)。
+半径も、ずらした中心で EDT を双線形サンプリングして取り直す (edt モード)。
+中心だけ直して半径が旧中心の値のままでは、中心と半径の実測点がずれるため。
+これは平滑化ではない: 半径の移動平均は実測で IoU を悪化させる
+ (±1点で 96.29%、±2点で 95.36% — 半径の段差は本当の幅変化を担っている)。
+再計算した半径は系統的に少し小さくなる (稜線の頂点から外れる分) ので、
+復元時の半径オフセットの最適は -0.35 に移る (IoU 97.40%)。
+濃度プロファイルの FWHM からの半径推定はベタ部の plateau で壊れる
+ ことを確認済み (IoU 75.95%) のため不採用。
 """
 
 import argparse
@@ -34,7 +38,7 @@ from scipy.ndimage import distance_transform_edt, map_coordinates
 OFFS = np.arange(-4.0, 4.0001, 0.2)
 
 
-def refine_stroke(pts, closed, field, clamp):
+def refine_stroke(pts, closed, field, clamp, edt_field=None):
     n = len(pts)
     out_pts = []
     shifts = []
@@ -62,13 +66,14 @@ def refine_stroke(pts, closed, field, clamp):
         delta = float((offs * w).sum() / w.sum())
         delta = max(-clamp, min(clamp, delta))
         shifts.append(abs(delta))
-        out_pts.append(
-            {
-                "x": round(p["x"] + nx * delta, 3),
-                "y": round(p["y"] + ny * delta, 3),
-                "r": p["r"],
-            }
-        )
+        qx = p["x"] + nx * delta
+        qy = p["y"] + ny * delta
+        r = p["r"]
+        if edt_field is not None:
+            # Radius re-measured at the shifted center (inscribed-circle
+            # radius of the true center), bilinearly sampled -> continuous.
+            r = float(map_coordinates(edt_field, [[qy], [qx]], order=1, mode="nearest")[0])
+        out_pts.append({"x": round(qx, 3), "y": round(qy, 3), "r": round(r, 3)})
     return out_pts, shifts
 
 
@@ -83,15 +88,20 @@ def main() -> int:
     args = ap.parse_args()
 
     gray = np.asarray(Image.open(args.image).convert("L")).astype(np.float64)
+    edt_field = distance_transform_edt(gray <= args.threshold)
     if args.mode == "edt":
-        field = distance_transform_edt(gray <= args.threshold)
+        field = edt_field
+        radius_field = edt_field
     else:
         field = (255.0 - gray) / 255.0
+        radius_field = None
 
     d = json.loads(Path(args.strokes).read_text())
     all_shifts = []
     for s in d["strokes"]:
-        s["points"], shifts = refine_stroke(s["points"], s.get("closed", False), field, args.clamp)
+        s["points"], shifts = refine_stroke(
+            s["points"], s.get("closed", False), field, args.clamp, radius_field
+        )
         all_shifts.extend(shifts)
     Path(args.output).write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")))
     print(
