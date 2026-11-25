@@ -61,16 +61,19 @@ def span_deviation(ctrl_xy, k, samp_xy, samp_arc, a0, a1):
     return float(d.min(axis=1).max()), sel
 
 
-def refine_piece(xy, r, tol, eps_r):
+def refine_piece(xy, r, tol, eps_r, init=4):
     """xy, r: one corner-free piece (open). Returns control indices."""
     n = len(xy)
     if n <= 4:
         return list(range(n))
     arc, _ = arc_params(xy)
     total = arc[-1]
-    ctrl = sorted({0, n - 1,
-                   int(np.argmin(np.abs(arc - total / 3.0))),
-                   int(np.argmin(np.abs(arc - 2.0 * total / 3.0)))})
+    if init == 2:
+        ctrl = [0, n - 1]
+    else:
+        ctrl = sorted({0, n - 1,
+                       int(np.argmin(np.abs(arc - total / 3.0))),
+                       int(np.argmin(np.abs(arc - 2.0 * total / 3.0)))})
     for _ in range(60):
         ctrl_xy = xy[ctrl]
         ctrl_arc = arc[ctrl]
@@ -158,7 +161,7 @@ def refine_closed(xy, r, tol, eps_r):
     return ctrl
 
 
-def refine_stroke(stroke, tol, eps_r, corner_deg):
+def refine_stroke(stroke, tol, eps_r, corner_deg, init=4):
     pts = stroke["points"]
     xy = np.array([[p["x"], p["y"]] for p in pts], dtype=float)
     r = np.array([p["r"] for p in pts], dtype=float)
@@ -172,7 +175,7 @@ def refine_stroke(stroke, tol, eps_r, corner_deg):
     bounds = [0] + [i for i in range(1, n - 1) if ang[i] >= corner_deg] + [n - 1]
     keep = []
     for a, b in zip(bounds[:-1], bounds[1:]):
-        idx = refine_piece(xy[a:b + 1], r[a:b + 1], tol, eps_r)
+        idx = refine_piece(xy[a:b + 1], r[a:b + 1], tol, eps_r, init)
         keep.extend(a + i for i in idx)
     keep = sorted(set(keep))
     return [pts[i] for i in keep]
@@ -187,13 +190,15 @@ def main():
     ap.add_argument("--eps-r", type=float, default=0.35,
                     help="max allowed radius deviation, px (0 = off)")
     ap.add_argument("--corner-deg", type=float, default=50.0)
+    ap.add_argument("--init", type=int, default=4, choices=[2, 4],
+                    help="seed control points per open piece (2 = straight line)")
     a = ap.parse_args()
 
     d = json.loads(Path(a.input).read_text())
     total_in = total_out = 0
     for s in d["strokes"]:
         total_in += len(s["points"])
-        s["points"] = refine_stroke(s, a.tol, a.eps_r, a.corner_deg)
+        s["points"] = refine_stroke(s, a.tol, a.eps_r, a.corner_deg, a.init)
         total_out += len(s["points"])
     Path(a.output).write_text(json.dumps(d))
     print(f"{a.input} -> {a.output}: points {total_in} -> {total_out} "
