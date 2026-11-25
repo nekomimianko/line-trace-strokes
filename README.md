@@ -35,6 +35,7 @@
   ▼
 variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク列）
   │  chain_strokes.py   分岐点で端点を直進ペアリングして連結（任意）
+  │  prune_strokes.py   ごく短いストロークの除去（任意、チェインの後に）
   ▼
 繋がったストローク JSON
   │  render_strokes.py  JSON だけから AA 付きで復元
@@ -52,6 +53,8 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
   近い相手」でペアリングし、ストロークを連結する。幾何には触らないので
   復元結果は変わらない（下記検証）。繋がらなかった短いストローク
   （棘・点・毛先の破片）は独立したまま残る。
+- `prune_strokes.py` — 点数が閾値以下のストロークを除去する。
+  チェイン化の後に使うこと（理由は下記の除去実験）。
 - `render_smooth.py` — 実験版の復元。Catmull-Rom 補間で中心線を滑らかにして
   なぞる。画素周期のジッター対策の検証用（本筋は上記3本）。
 
@@ -65,6 +68,9 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
 
 # チェイン化
 .venv/bin/python chain_strokes.py strokes.json -o strokes_chained.json
+
+# ごく短いストロークの除去（任意。チェインの後に、5点以下までが安全圏）
+.venv/bin/python prune_strokes.py strokes_chained.json 5 strokes_pruned.json
 
 # JSON だけから復元 + 元画像と比較
 .venv/bin/python render_strokes.py strokes_chained.json -o restored.png \
@@ -96,6 +102,33 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
   （分岐点で端点スタンプが重なっていた箇所が1pxずつ変わる）。
   グレースケール差も50画素のみ。`examples/anime/comparison_chained_diff_zoom.png` 参照。
 
+### 短いストロークの除去実験
+
+点数が閾値以下のストロークを捨ててから復元するとどうなるか（`prune_strokes.py`）。
+除去しない場合の IoU は 93.43%。
+
+| 除去する短さ | 未チェインから除去 | チェイン済みから除去 |
+|---|---:|---:|
+| ≤2点 | 93.35%（2,945本除去） | — |
+| ≤3点 | 92.89%（4,498本） | 93.44%（1,101本） |
+| ≤5点 | 90.18%（6,751本） | **93.44%（1,952本）** |
+| ≤10点 | 83.04%（8,254本） | 92.72%（2,447本） |
+
+- 未チェインで ≤5点まで捨てると IoU は −3.25pt に留まるが、**視覚的には目が壊れる**。
+  瞳の放射状の刻み・下まつ毛・細い髪の流れが点線化して消える。短いストロークの
+  固有寄与は面積ではなく細部の密度に詰まっている
+  （≤5点除去でだけ失われるインク 18,050px が目・耳の毛・髪の際に集中する）。
+
+![未チェイン≤5点除去の目：左=元、中央=全復元、右=除去後復元](examples/anime/comparison_prune_eye.png)
+
+![≤5点除去でだけ失われるインク（赤）](examples/anime/pruned5_lostmap_overview.png)
+
+- 一方、**チェイン化の後なら ≤5点まで除去しても IoU は不変で、目もほぼ残る**。
+  チェイン化が「長い線の一部だった断片」を先に回収するため、残る短いストロークは
+  太いインク内部の冗長な棘が中心になる。捨てるならチェインの後に。
+
+![チェイン済み≤5点除去の目：ほぼ無傷](examples/anime/comparison_prune_eye_chained.png)
+
 ### 復元誤差の性質（medial-axis、未チェイン）
 
 - 欠損の99%は元のインクの境界画素で、復元までの距離の中央値は1px。
@@ -124,7 +157,8 @@ python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow
 
 ## ファイル
 
-- `line_trace.py` / `render_strokes.py` / `chain_strokes.py` / `render_smooth.py` — 本体
+- `line_trace.py` / `render_strokes.py` / `chain_strokes.py` / `prune_strokes.py` /
+  `render_smooth.py` — 本体
 - `examples/anime/` — テスト入力・トレース結果 JSON（未チェイン／チェイン済み）・
   復元・比較画像
 
