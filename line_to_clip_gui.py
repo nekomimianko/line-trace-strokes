@@ -25,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from scipy import ndimage as ndi
 
 # 工程モジュールを明示 import しておく（PyInstaller に確実に拾わせる）
 import chain_strokes  # noqa: F401
@@ -277,9 +278,12 @@ class App:
                 f"  しきい値 {th}：インク {ink.mean() * 100:.1f}%")
         if self.region_mask is not None:
             reg = self.region_mask & ink
+            # 表示だけ1px浸食する：領域の縁にかかる輪郭線が赤に埋もれて
+            # 見えなくなるのを防ぐ（変換データ自体は変えない）
+            reg_view = ndi.binary_erosion(self.region_mask, iterations=1) & ink
             rgb = np.full((*ink.shape, 3), 255, np.uint8)
             rgb[ink] = (0, 0, 0)
-            rgb[reg] = (216, 48, 48)
+            rgb[reg_view] = (216, 48, 48)
             self.show_image(Image.fromarray(rgb, "RGB"))
             ratio = reg.sum() / max(ink.sum(), 1) * 100
             info += f" ／ ベタ {self.region_count}領域（インクの{ratio:.0f}%）"
