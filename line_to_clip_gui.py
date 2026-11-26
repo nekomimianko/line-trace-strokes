@@ -74,6 +74,7 @@ def build_argv(p: dict) -> list[str]:
         argv += ["--beta-depth", str(float(p["beta_depth"])),
                  "--min-region-area", str(int(p["min_region_area"])),
                  "--contour-tol", str(float(p["contour_tol"])),
+                 "--contour-eps-r", str(float(p["contour_eps_r"])),
                  "--contour-radius", str(float(p["contour_radius"]))]
         if not p["fill_layer"]:
             argv.append("--no-fill-layer")
@@ -127,59 +128,68 @@ class App:
         self.log.pack(fill="x")
 
         # ---- 右：パラメータ
-        right = ttk.Frame(root, padding=8, width=320)
+        right = ttk.Frame(root, padding=8, width=336)
         right.pack(side="right", fill="y")
         right.pack_propagate(False)
 
-        def num(label, default, row, from_, to, inc=1.0):
-            ttk.Label(right, text=label).grid(row=row, column=0, sticky="w", pady=2)
+        def num(parent, label, default, row, from_, to, inc=1.0):
+            ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=2)
             var = tk.DoubleVar(value=default)
-            ttk.Spinbox(right, textvariable=var, from_=from_, to=to, increment=inc,
-                        width=10).grid(row=row, column=1, sticky="e", pady=2)
+            ttk.Spinbox(parent, textvariable=var, from_=from_, to=to, increment=inc,
+                        width=8).grid(row=row, column=1, sticky="e", pady=2)
             return var
 
-        ttk.Label(right, text="パラメータ", font=("", 11, "bold")).grid(
-            row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
-        self.v_threshold = num("二値化しきい値", 180, 1, 1, 254)
+        ttk.Label(right, text="パラメータ", font=("", 11, "bold")).pack(
+            anchor="w", pady=(0, 6))
+        top = ttk.Frame(right)
+        top.pack(fill="x")
+        self.v_threshold = num(top, "二値化しきい値", 180, 0, 1, 254)
         self.v_threshold.trace_add("write", self._on_threshold_change)
-        self.v_tol = num("間引き：形の許容誤差 (px)", 0.3, 2, 0.0, 5.0, 0.05)
-        self.v_eps_r = num("間引き：線幅の許容誤差 (px)", 0.15, 3, 0.0, 5.0, 0.05)
 
+        smooth = ttk.LabelFrame(right, text="線のスムース化", padding=6)
+        smooth.pack(fill="x", pady=(10, 0))
+        self.v_refine = tk.BooleanVar(value=True)
+        ttk.Checkbutton(smooth, text="間引きする", variable=self.v_refine).grid(
+            row=0, column=0, columnspan=2, sticky="w")
+        self.v_tol = num(smooth, "線形状の許容誤差 (px)", 0.3, 1, 0.0, 5.0, 0.05)
+        self.v_eps_r = num(smooth, "半径（幅）の許容誤差 (px)", 0.15, 2, 0.0, 5.0, 0.05)
+
+        beta = ttk.LabelFrame(right, text="黒ベタ", padding=6)
+        beta.pack(fill="x", pady=(10, 0))
         self.v_beta = tk.BooleanVar(value=True)
-        ttk.Checkbutton(right, text="黒ベタを分離する", variable=self.v_beta).grid(
-            row=4, column=0, columnspan=2, sticky="w", pady=(10, 2))
-        self.v_beta_depth = num("ベタ判定の深さ (px)", 6.0, 5, 1.0, 30.0, 0.5)
-        self.v_min_region = num("ベタの最小面積 (px)", 200, 6, 0, 100000, 50)
+        ttk.Checkbutton(beta, text="黒ベタを分離する", variable=self.v_beta).grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 2))
+        self.v_beta_depth = num(beta, "ベタ判定の深さ (px)", 6.0, 1, 1.0, 30.0, 0.5)
+        self.v_min_region = num(beta, "ベタの最小面積 (px)", 200, 2, 0, 100000, 50)
         for var in (self.v_beta, self.v_beta_depth, self.v_min_region):
             var.trace_add("write", self._on_beta_param_change)
-        self.v_contour_tol = num("輪郭の間引き許容誤差 (px)", 0.75, 7, 0.0, 10.0, 0.05)
-        self.v_contour_radius = num("輪郭線の半径 (px)", 1.0, 8, 0.2, 10.0, 0.1)
+        self.v_contour_tol = num(beta, "輪郭形状の許容誤差 (px)", 0.75, 3, 0.0, 10.0, 0.05)
+        self.v_contour_eps_r = num(beta, "輪郭の半径（幅）の許容誤差 (px)", 0.35, 4, 0.0, 10.0, 0.05)
+        self.v_contour_radius = num(beta, "輪郭線の太さ (px)", 1.0, 5, 0.2, 10.0, 0.1)
         self.v_fill = tk.BooleanVar(value=True)
-        ttk.Checkbutton(right, text="ベタ塗りラスターレイヤーを同梱", variable=self.v_fill).grid(
-            row=9, column=0, columnspan=2, sticky="w", pady=2)
+        ttk.Checkbutton(beta, text="ベタ塗りラスターレイヤーを同梱", variable=self.v_fill).grid(
+            row=6, column=0, columnspan=2, sticky="w", pady=2)
 
         self.v_chain = tk.BooleanVar(value=True)
-        ttk.Checkbutton(right, text="ストロークをチェイン化", variable=self.v_chain).grid(
-            row=10, column=0, columnspan=2, sticky="w", pady=(10, 2))
-        self.v_refine = tk.BooleanVar(value=True)
-        ttk.Checkbutton(right, text="間引きする", variable=self.v_refine).grid(
-            row=11, column=0, columnspan=2, sticky="w")
-        ttk.Label(right, text="曲線の種類").grid(row=12, column=0, sticky="w", pady=2)
+        ttk.Checkbutton(right, text="ストロークをチェイン化", variable=self.v_chain).pack(
+            anchor="w", pady=(10, 2))
+        curve_row = ttk.Frame(right)
+        curve_row.pack(fill="x")
+        ttk.Label(curve_row, text="曲線の種類").grid(row=0, column=0, sticky="w", pady=2)
         self.v_curve = tk.StringVar(value="spline")
-        ttk.Combobox(right, textvariable=self.v_curve, values=["spline", "straight"],
-                     state="readonly", width=10).grid(row=12, column=1, sticky="e")
+        ttk.Combobox(curve_row, textvariable=self.v_curve, values=["spline", "straight"],
+                     state="readonly", width=10).grid(row=0, column=1, sticky="e")
 
-        ttk.Label(right, text="出力 .clip").grid(row=13, column=0, sticky="w", pady=(12, 2))
+        ttk.Label(right, text="出力 .clip").pack(anchor="w", pady=(12, 2))
         self.v_output = tk.StringVar()
-        ttk.Entry(right, textvariable=self.v_output, width=30).grid(
-            row=14, column=0, columnspan=2, sticky="we", pady=2)
-        ttk.Button(right, text="出力先を選ぶ…", command=self.pick_output).grid(
-            row=15, column=0, columnspan=2, sticky="we")
+        ttk.Entry(right, textvariable=self.v_output, width=30).pack(fill="x", pady=2)
+        ttk.Button(right, text="出力先を選ぶ…", command=self.pick_output).pack(
+            fill="x", pady=(4, 0))
 
         self.run_btn = ttk.Button(right, text="変換する", command=self.run_conversion)
-        self.run_btn.grid(row=16, column=0, columnspan=2, sticky="we", pady=(16, 4))
+        self.run_btn.pack(fill="x", pady=(16, 4))
         self.status = ttk.Label(right, text="")
-        self.status.grid(row=17, column=0, columnspan=2, sticky="w")
+        self.status.pack(anchor="w")
 
         if HAS_DND:
             self.preview.drop_target_register(DND_FILES)
@@ -316,6 +326,7 @@ class App:
                 "beta_depth": self.v_beta_depth.get(),
                 "min_region_area": self.v_min_region.get(),
                 "contour_tol": self.v_contour_tol.get(),
+                "contour_eps_r": self.v_contour_eps_r.get(),
                 "contour_radius": self.v_contour_radius.get(),
                 "fill_layer": self.v_fill.get()}
 
@@ -415,7 +426,8 @@ def selftest(image: str, output: str) -> int:
          "eps_r": 0.15, "curve": "spline",
          "work": tempfile.mkdtemp(prefix="line_to_clip_selftest_"),
          "chain": True, "refine": True, "beta": True, "beta_depth": 6.0,
-         "min_region_area": 200, "contour_tol": 0.75, "contour_radius": 1.0,
+         "min_region_area": 200, "contour_tol": 0.75, "contour_eps_r": 0.35,
+         "contour_radius": 1.0,
          "fill_layer": True}
     log_path = str(output) + ".log"
     real_stdout = sys.stdout
