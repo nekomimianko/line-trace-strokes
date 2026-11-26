@@ -42,14 +42,14 @@ coordinates, CSP uses corner origin).
 Options:
   --svg PATH   also write a curve-fitted outline SVG (fit_curves.py)
   --no-chain   skip chain_strokes.py (strokes stay split at junctions)
-  --tol PX     shape tolerance of the thinning step (default 0.3 px;
+  --tol PX     shape tolerance of the thinning step (default 0.75 px;
                raise it to smooth stroke shapes more)
   --eps-r PX   line-width tolerance of the thinning step (default
-               0.15 px; raise it to smooth brush-size variation more)
+               1.0 px; raise it to smooth brush-size variation more)
   --no-refine  skip refine_strokes.py (keep every traced point)
   --no-beta    skip beta detection/trim (plain line trace, no
                contour strokes; pure line art is barely affected)
-  --beta-depth PX  core depth for beta detection (default 6 px;
+  --beta-depth PX  core depth for beta detection (default 3 px;
                solids must be locally 2x this wide; thick-line
                assumption, absolute px by design)
   --contour-tol PX  thinning tolerance for contour curves
@@ -124,11 +124,11 @@ def main(argv=None):
     ap.add_argument("--curve", choices=["spline", "straight"], default="spline")
     ap.add_argument("--dpi", type=float, default=72.0)
     ap.add_argument("--no-chain", action="store_true")
-    ap.add_argument("--tol", type=float, default=0.3)
-    ap.add_argument("--eps-r", type=float, default=0.15)
+    ap.add_argument("--tol", type=float, default=0.75)
+    ap.add_argument("--eps-r", type=float, default=1.0)
     ap.add_argument("--no-refine", action="store_true")
     ap.add_argument("--no-beta", action="store_true")
-    ap.add_argument("--beta-depth", type=float, default=6.0)
+    ap.add_argument("--beta-depth", type=float, default=3.0)
     ap.add_argument("--min-region-area", type=int, default=200)
     ap.add_argument("--contour-tol", type=float, default=0.75)
     ap.add_argument("--contour-eps-r", type=float, default=0.35)

@@ -146,25 +146,25 @@ class App:
         self.v_threshold = num(top, "二値化しきい値", 180, 0, 1, 254)
         self.v_threshold.trace_add("write", self._on_threshold_change)
 
-        smooth = ttk.LabelFrame(right, text="線のスムース化", padding=6)
+        smooth = ttk.LabelFrame(right, text="線修正", padding=6)
         smooth.pack(fill="x", pady=(10, 0))
         self.v_refine = tk.BooleanVar(value=True)
-        ttk.Checkbutton(smooth, text="間引きする", variable=self.v_refine).grid(
+        ttk.Checkbutton(smooth, text="スムース化", variable=self.v_refine).grid(
             row=0, column=0, columnspan=2, sticky="w")
-        self.v_tol = num(smooth, "線形状の許容誤差 (px)", 0.3, 1, 0.0, 5.0, 0.05)
-        self.v_eps_r = num(smooth, "半径（幅）の許容誤差 (px)", 0.15, 2, 0.0, 5.0, 0.05)
+        self.v_tol = num(smooth, "線形状の許容誤差 (px)", 0.75, 1, 0.0, 5.0, 0.05)
+        self.v_eps_r = num(smooth, "線幅の許容誤差 (px)", 1.0, 2, 0.0, 5.0, 0.05)
 
         beta = ttk.LabelFrame(right, text="黒ベタ", padding=6)
         beta.pack(fill="x", pady=(10, 0))
         self.v_beta = tk.BooleanVar(value=True)
         ttk.Checkbutton(beta, text="黒ベタを分離する", variable=self.v_beta).grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 2))
-        self.v_beta_depth = num(beta, "ベタ判定の深さ (px)", 6.0, 1, 1.0, 30.0, 0.5)
+        self.v_beta_depth = num(beta, "ベタ判定の深さ (px)", 3.0, 1, 1.0, 30.0, 0.5)
         self.v_min_region = num(beta, "ベタの最小面積 (px)", 200, 2, 0, 100000, 50)
         for var in (self.v_beta, self.v_beta_depth, self.v_min_region):
             var.trace_add("write", self._on_beta_param_change)
         self.v_contour_tol = num(beta, "輪郭形状の許容誤差 (px)", 0.75, 3, 0.0, 10.0, 0.05)
-        self.v_contour_eps_r = num(beta, "輪郭の半径（幅）の許容誤差 (px)", 0.35, 4, 0.0, 10.0, 0.05)
+        self.v_contour_eps_r = num(beta, "輪郭の線幅の許容誤差 (px)", 0.35, 4, 0.0, 10.0, 0.05)
         self.v_contour_radius = num(beta, "輪郭線の太さ (px)", 1.0, 5, 0.2, 10.0, 0.1)
         self.v_fill = tk.BooleanVar(value=True)
         ttk.Checkbutton(beta, text="ベタ塗りラスターレイヤーを同梱", variable=self.v_fill).grid(
@@ -422,10 +422,10 @@ def selftest(image: str, output: str) -> int:
     ログは output の隣の .log ファイルにも書く（windowed exe は
     コンソールを持たないため）。"""
     import contextlib
-    p = {"input": image, "output": output, "threshold": 180, "tol": 0.3,
-         "eps_r": 0.15, "curve": "spline",
+    p = {"input": image, "output": output, "threshold": 180, "tol": 0.75,
+         "eps_r": 1.0, "curve": "spline",
          "work": tempfile.mkdtemp(prefix="line_to_clip_selftest_"),
-         "chain": True, "refine": True, "beta": True, "beta_depth": 6.0,
+         "chain": True, "refine": True, "beta": True, "beta_depth": 3.0,
          "min_region_area": 200, "contour_tol": 0.75, "contour_eps_r": 0.35,
          "contour_radius": 1.0,
          "fill_layer": True}
