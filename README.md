@@ -73,7 +73,8 @@ tol を上げると線の通り道そのものが単純になる（瞳の放射�
 （二値化しきい値、間引きの許容誤差、ベタ判定の深さなど）だけを設定して
 変換できる。変換後は線＋ベタ塗りの合成プレビューが表示される。
 
-ビルド済みの配布パッケージは `releases/LineToClip-v1.1.zip`
+ビルド済みの配布パッケージは GitHub Releases で配布している：
+**[LineToClip-v1.1.zip をダウンロード](https://github.com/nekomimianko/line-trace-strokes/releases/download/v1.1/LineToClip-v1.1.zip)**
 （解凍して `LineToClip\LineToClip.exe` を実行。フォルダごと使うこと）。
 プレビューは2値化後の状態で表示され、しきい値を変えるとその場で追従する。
 
