@@ -12,6 +12,12 @@
 編集しやすい形にしている。.clip の読み書き自体は姉妹プロジェクト
 [clipvec](https://github.com/nekomimianko/clipvec) が担う。
 
+![GUI で変換しているところ（左）と、できた .clip を CLIP STUDIO PAINT で開いたところ（右）](examples/overview_gui_csp.png)
+
+左が GUI ランチャー（Windows 用 exe）、右が変換結果の .clip を
+CLIP STUDIO PAINT で開いたところ。ベクターレイヤー（line-trace）の
+下に「ベタ塗り」ラスターレイヤーが入り、そのまま編集できる。
+
 ## 使い方：画像から .clip を作る
 
 ```bash
@@ -88,6 +94,24 @@ pip install -r requirements.txt pyinstaller
 ```
 LineToClip.exe --selftest input.png output.clip
 ```
+
+### Windows のセキュリティにブロックされる場合
+
+この exe は PyInstaller で作られており、コード署名をしていないため、
+ダウンロードした状態では Windows のセキュリティ機能に止められる
+ことがある（PyInstaller 製アプリ共通の現象で、このアプリ固有の
+問題ではない）。根本的な解消には有料のコード署名証明書が必要なため、
+当面は以下の手順で回避してほしい。
+
+- **「Windows によって PC が保護されました」と出る（SmartScreen）**
+  → ダイアログの「詳細情報」を押すと「実行」ボタンが出るので、それを押す。
+- **Defender に削除された／「脅威が検出されました」と出る**
+  → Windows セキュリティ →「ウイルスと脅威の防止」→「保護の履歴」で
+  該当項目を選び、「デバイスで許可」を実行すると復元できる。
+- zip を展開する前に、zip ファイルのプロパティで「許可する」
+  （ブロックの解除）にチェックを入れてから展開すると、上記が出にくい。
+- ソースから自分でビルドした exe は、ダウンロード扱いにならないため
+  通常ブロックされない。
 
 ## テスト結果（アニメ風線画 1120×2240）
 
