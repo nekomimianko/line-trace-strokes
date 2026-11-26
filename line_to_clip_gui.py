@@ -100,6 +100,12 @@ class App:
         root.minsize(880, 640)
         self.input_path: Path | None = None
         self.input_gray = None  # 2値化プレビュー用の元グレースケール
+        self.region_mask = None  # 検出済みベタ領域（プレビューで赤く重ねる）
+        self.region_count = 0
+        self._region_seq = 0
+        self._region_busy = False
+        self._region_pending = False
+        self._region_after = None
         self.photo = None
         self.log_queue: queue.Queue = queue.Queue()
         self.work_dir = Path(tempfile.mkdtemp(prefix="line_to_clip_gui_"))
@@ -143,6 +149,8 @@ class App:
             row=4, column=0, columnspan=2, sticky="w", pady=(10, 2))
         self.v_beta_depth = num("ベタ判定の深さ (px)", 6.0, 5, 1.0, 30.0, 0.5)
         self.v_min_region = num("ベタの最小面積 (px)", 200, 6, 0, 100000, 50)
+        for var in (self.v_beta, self.v_beta_depth, self.v_min_region):
+            var.trace_add("write", self._on_beta_param_change)
         self.v_contour_tol = num("輪郭の間引き許容誤差 (px)", 0.75, 7, 0.0, 10.0, 0.05)
         self.v_contour_radius = num("輪郭線の半径 (px)", 1.0, 8, 0.2, 10.0, 0.1)
         self.v_fill = tk.BooleanVar(value=True)
@@ -198,16 +206,65 @@ class App:
             return
         self.input_path = path
         self.input_gray = np.asarray(img.convert("L"))
+        self.region_mask = None
+        self.region_count = 0
         self.v_output.set(str(path.with_suffix(".clip")))
         self.status.config(text="")
         self.refresh_preview()
+        self._schedule_region_update()
 
     def _on_threshold_change(self, *_args):
         self.refresh_preview()
+        self._schedule_region_update()
+
+    def _on_beta_param_change(self, *_args):
+        self._schedule_region_update()
+
+    def _schedule_region_update(self):
+        """ベタ領域の再計算を少し遅らせて予約する（ spinbox の連続変更で
+        計算が雪崩れないように）。"""
+        if self._region_after is not None:
+            self.root.after_cancel(self._region_after)
+        self._region_after = self.root.after(400, self._start_region_update)
+
+    def _start_region_update(self):
+        self._region_after = None
+        if self.input_gray is None:
+            return
+        try:
+            beta_on = bool(self.v_beta.get())
+            th = int(self.v_threshold.get())
+            depth = float(self.v_beta_depth.get())
+            min_area = int(self.v_min_region.get())
+        except (tk.TclError, ValueError):
+            return  # 入力途中の不正値は無視する
+        if not beta_on:
+            self.region_mask = None
+            self.region_count = 0
+            self.refresh_preview()
+            return
+        if self._region_busy:
+            self._region_pending = True
+            return
+        self._region_seq += 1
+        self._region_busy = True
+        ink = self.input_gray <= th
+        threading.Thread(target=self._region_worker,
+                         args=(self._region_seq, ink, depth, min_area),
+                         daemon=True).start()
+        self.refresh_preview()
+
+    def _region_worker(self, seq, ink, depth, min_area):
+        try:
+            regions, union = detect_beta.detect_regions(ink, depth, 30, min_area)
+            self.log_queue.put(("__regions__", seq, union, len(regions)))
+        except Exception:
+            self.log_queue.put(("__regions__", seq, None, 0))
 
     def refresh_preview(self):
         """プレビューは常に2値化後の状態で出す（パイプラインの判定と
-        同じく gray <= しきい値 がインク）。しきい値を変えると即追従する。"""
+        同じく gray <= しきい値 がインク）。しきい値を変えると即追従し、
+        検出済みのベタ領域は赤で重ねて示す。"""
         if self.input_gray is None or self.input_path is None:
             return
         try:
@@ -215,11 +272,23 @@ class App:
         except (tk.TclError, ValueError):
             return  # 入力途中の不正値は無視する
         ink = self.input_gray <= th
-        binary = np.where(ink, 0, 255).astype(np.uint8)
-        self.show_image(Image.fromarray(binary, "L"))
         h, w = self.input_gray.shape
-        self.info.config(text=f"{self.input_path.name}  {w}×{h}"
-                              f"  しきい値 {th}：インク {ink.mean() * 100:.1f}%")
+        info = (f"{self.input_path.name}  {w}×{h}"
+                f"  しきい値 {th}：インク {ink.mean() * 100:.1f}%")
+        if self.region_mask is not None:
+            reg = self.region_mask & ink
+            rgb = np.full((*ink.shape, 3), 255, np.uint8)
+            rgb[ink] = (0, 0, 0)
+            rgb[reg] = (216, 48, 48)
+            self.show_image(Image.fromarray(rgb, "RGB"))
+            ratio = reg.sum() / max(ink.sum(), 1) * 100
+            info += f" ／ ベタ {self.region_count}領域（インクの{ratio:.0f}%）"
+        else:
+            binary = np.where(ink, 0, 255).astype(np.uint8)
+            self.show_image(Image.fromarray(binary, "L"))
+            if self._region_busy:
+                info += " ／ ベタ計算中…"
+        self.info.config(text=info)
 
     def show_image(self, img: Image.Image):
         img = img.convert("RGB")
@@ -274,7 +343,16 @@ class App:
         try:
             while True:
                 item = self.log_queue.get_nowait()
-                if isinstance(item, tuple) and item[0] == "__done__":
+                if isinstance(item, tuple) and item[0] == "__regions__":
+                    self._region_busy = False
+                    if item[1] == self._region_seq:
+                        self.region_mask = item[2]
+                        self.region_count = item[3]
+                        self.refresh_preview()
+                    if self._region_pending:
+                        self._region_pending = False
+                        self._schedule_region_update()
+                elif isinstance(item, tuple) and item[0] == "__done__":
                     self.on_done(item[1])
                 elif isinstance(item, tuple) and item[0] == "__error__":
                     self.on_error(item[1])
