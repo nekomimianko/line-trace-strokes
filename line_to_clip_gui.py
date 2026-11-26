@@ -23,6 +23,7 @@ import tempfile
 import threading
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 # 工程モジュールを明示 import しておく（PyInstaller に確実に拾わせる）
@@ -98,6 +99,7 @@ class App:
         root.title("line-trace-strokes — 画像から .clip を作る")
         root.minsize(880, 640)
         self.input_path: Path | None = None
+        self.input_gray = None  # 2値化プレビュー用の元グレースケール
         self.photo = None
         self.log_queue: queue.Queue = queue.Queue()
         self.work_dir = Path(tempfile.mkdtemp(prefix="line_to_clip_gui_"))
@@ -132,6 +134,7 @@ class App:
         ttk.Label(right, text="パラメータ", font=("", 11, "bold")).grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
         self.v_threshold = num("二値化しきい値", 180, 1, 1, 254)
+        self.v_threshold.trace_add("write", self._on_threshold_change)
         self.v_tol = num("間引き：形の許容誤差 (px)", 0.3, 2, 0.0, 5.0, 0.05)
         self.v_eps_r = num("間引き：線幅の許容誤差 (px)", 0.15, 3, 0.0, 5.0, 0.05)
 
@@ -194,10 +197,29 @@ class App:
             messagebox.showerror("画像を開けません", str(e))
             return
         self.input_path = path
+        self.input_gray = np.asarray(img.convert("L"))
         self.v_output.set(str(path.with_suffix(".clip")))
-        self.info.config(text=f"{path.name}  {img.width}×{img.height}")
-        self.show_image(img)
         self.status.config(text="")
+        self.refresh_preview()
+
+    def _on_threshold_change(self, *_args):
+        self.refresh_preview()
+
+    def refresh_preview(self):
+        """プレビューは常に2値化後の状態で出す（パイプラインの判定と
+        同じく gray <= しきい値 がインク）。しきい値を変えると即追従する。"""
+        if self.input_gray is None or self.input_path is None:
+            return
+        try:
+            th = int(self.v_threshold.get())
+        except (tk.TclError, ValueError):
+            return  # 入力途中の不正値は無視する
+        ink = self.input_gray <= th
+        binary = np.where(ink, 0, 255).astype(np.uint8)
+        self.show_image(Image.fromarray(binary, "L"))
+        h, w = self.input_gray.shape
+        self.info.config(text=f"{self.input_path.name}  {w}×{h}"
+                              f"  しきい値 {th}：インク {ink.mean() * 100:.1f}%")
 
     def show_image(self, img: Image.Image):
         img = img.convert("RGB")
