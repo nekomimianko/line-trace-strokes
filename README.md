@@ -22,7 +22,7 @@ CLIP STUDIO PAINT で開いたところ。ベクターレイヤー（line-trace�
 
 ### GUI（Windows）
 
-**[LineToClip-v1.4.zip をダウンロード](https://github.com/nekomimianko/line-trace-strokes/releases/download/v1.4/LineToClip-v1.4.zip)**
+**[LineToClip-v1.5.zip をダウンロード](https://github.com/nekomimianko/line-trace-strokes/releases/download/v1.5/LineToClip-v1.5.zip)**
 解凍して `LineToClip\LineToClip.exe` を実行する（フォルダごと使うこと）。
 
 - PyInstaller 製の実行ファイルです。
