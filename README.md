@@ -18,22 +18,59 @@
 CLIP STUDIO PAINT で開いたところ。ベクターレイヤー（line-trace）の
 下に「ベタ塗り」ラスターレイヤーが入り、そのまま編集できる。
 
-## 使い方：画像から .clip を作る
+## インストール
+
+### GUI（Windows）
+
+**[LineToClip-v1.3.zip をダウンロード](https://github.com/nekomimianko/line-trace-strokes/releases/download/v1.3/LineToClip-v1.3.zip)**
+解凍して `LineToClip\LineToClip.exe` を実行する（フォルダごと使うこと）。
+
+- PyInstaller 製の実行ファイルです。
+- Windows のセキュリティにブロックされることがあります。
+- 初回起動は展開のため遅いです（ハングではありません）。2回目以降は速くなります。
+
+### CLI
 
 ```bash
 git clone --recursive https://github.com/nekomimianko/line-trace-strokes
 cd line-trace-strokes
 python -m venv .venv && .venv/bin/pip install numpy scipy scikit-image pillow shapely
-
 .venv/bin/python line_to_clip.py input.png -o output.clip
 ```
 
-（`--recursive` は .clip 書き出しライブラリ clipvec を配下の `clipvec/`
-フォルダにサブモジュールとして一緒に持ってくる指定。既に clone 済みの
-場合は `git submodule update --init` で後からでも入る。）
+## 使い方
 
-これだけで、実測で詰めた既定値のまま全工程（トレース → サブピクセル化 →
-チェイン化 → ベタ検出 → 輪郭での切り取り → 間引き → .clip 化）が走る。パラメータをいじる必要は基本的にない。
+GUI と CLI は同じ変換エンジンを使っており、パラメータは共通。
+GUI は画像をドラッグ＆ドロップするとプレビューが出て、その場で
+パラメータを調整して変換できる。CLI は `line_to_clip.py` に
+画像を渡す。どちらも既定値のまま全工程（トレース → サブピクセル化 →
+チェイン化 → ベタ検出 → 輪郭での切り取り → 間引き → .clip 化）が
+走るので、パラメータをいじる必要は基本的にない。
+
+### パラメータ（GUI / CLI 共通）
+
+- **二値化しきい値**（CLI: `--threshold`、既定 180）：グレースケールで
+  この値以下をインクとみなす。GUI のプレビューはこの2値化後の
+  状態で表示される。
+- **間引き tol**（`--tol`、既定 0.3px）：中心線の形について許容する
+  ずれ。大きくすると線が滑らかになる（詳細は次の「間引きについて」）。
+- **間引き eps_r**（`--eps-r`、既定 0.15px）：線幅について許容する
+  ずれ。大きくすると太さの出入りが均される。
+- **ベタ判定**（`--no-beta` で無効）：黒ベタを領域として検出・分離する。
+  GUI では検出結果がプレビューに赤で重なって表示される。
+  - **深さ**（`--beta-depth`、既定 6px）：この深さより太い塊をベタと
+    みなす。幅 12px までの線は線として残る。
+  - **最小面積**（`--min-region-area`、既定 200px）：これ未満の領域は
+    ベタにしない。
+  - **輪郭 tol**（`--contour-tol`、既定 0.75px）：ベタ輪郭ストロークの
+    間引きの許容誤差。
+  - **輪郭の線幅**（`--contour-radius`、既定 1.0）：ベタ輪郭ストロークの半径。
+  - **ベタ塗りレイヤー**（`--no-fill-layer` で無効）：ベタ領域を黒で
+    塗ったラスターレイヤーを .clip に同梱する。
+- **チェイン**（`--no-chain` で無効）：交点で粉砕されたストロークを
+  方向の連続性で繋ぎ直す。
+- **曲線**（`--curve`、既定 spline）：.clip 内の制御点の補間方式
+  （spline / straight）。
 
 ### 間引きについて
 
@@ -66,19 +103,15 @@ tol を上げると線の通り道そのものが単純になる（瞳の放射�
 - clipvec の場所は `--clipvec PATH` / 環境変数 `CLIPVEC_PATH` でも指定できる。
   見つからない場合は取得方法が案内される。
 
-## GUI（Windows 向け、exe 配布）
+## GUI について
 
 `line_to_clip_gui.py` は上記の全工程をそのまま使う薄い GUI ラッパー。
 画像をドラッグ＆ドロップするとプレビューが出て、主要パラメータ
-（二値化しきい値、間引きの許容誤差、ベタ判定の深さなど）だけを設定して
-変換できる。変換後は線＋ベタ塗りの合成プレビューが表示される。
-
-ビルド済みの配布パッケージは GitHub Releases で配布している：
-**[LineToClip-v1.3.zip をダウンロード](https://github.com/nekomimianko/line-trace-strokes/releases/download/v1.3/LineToClip-v1.3.zip)**
-（解凍して `LineToClip\LineToClip.exe` を実行。フォルダごと使うこと）。
-プレビューは2値化後の状態で表示され、しきい値を変えるとその場で追従する。
-ベタ判定の深さ・最小面積もプレビューにライブ反映され、検出された
-ベタ領域が赤で重なって表示される。
+だけを設定して変換できる。変換後は線＋ベタ塗りの合成プレビューが
+表示される。プレビューは2値化後の状態で表示され、しきい値を変えると
+その場で追従する。ベタ判定の深さ・最小面積もプレビューにライブ
+反映され、検出されたベタ領域が赤で重なって表示される（表示だけ
+1px 浸食してあるので、領域の縁の線も見える）。
 
 配布用 exe は PyInstaller で作る（Python 環境ごと同梱される）：
 
@@ -97,12 +130,6 @@ pip install -r requirements.txt pyinstaller
 ```
 LineToClip.exe --selftest input.png output.clip
 ```
-
-### 注意
-
-- PyInstaller 製の実行ファイルです。
-- Windows のセキュリティにブロックされることがあります。
-- 初回起動は展開のため遅いです（ハングではありません）。2回目以降は速くなります。
 
 ## テスト結果（アニメ風線画 1120×2240）
 
@@ -182,7 +209,7 @@ variable-radius-strokes v1 JSON   （各点が x, y, r を持つストローク�
 - `render_smooth.py` — 実験版の復元。Catmull-Rom 補間で中心線を滑らかにして
   なぞる。画素周期のジッター対策の検証用（本筋は上記3本）。
 
-## 使い方（工程を分けて使う場合）
+## 工程を分けて使う場合
 
 ```bash
 # トレース (medial-axis 推奨)
