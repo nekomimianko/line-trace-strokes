@@ -13,7 +13,7 @@
 
 ### GUI（Windows）
 
-**[LineToClip-v1.5.zip をダウンロード](https://github.com/nekomimianko/line-trace-strokes/releases/download/v1.5/LineToClip-v1.5.zip)**
+**[LineToClip-v1.6.zip をダウンロード](https://github.com/nekomimianko/line-trace-strokes/releases/download/v1.6/LineToClip-v1.6.zip)**
 解凍して `LineToClip\LineToClip.exe` を実行してください（フォルダごと使うこと）。
 
 - PyInstaller 製の実行ファイルです。
