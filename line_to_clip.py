@@ -124,10 +124,6 @@ def main(argv=None):
     ap.add_argument("--curve", choices=["spline", "straight"], default="spline")
     ap.add_argument("--dpi", type=float, default=72.0)
     ap.add_argument("--no-chain", action="store_true")
-    ap.add_argument("--legacy-chain", action="store_true",
-                    help="use legacy single-node chainer without spur pruning / junction clustering")
-    ap.add_argument("--split-corner-deg", type=float, default=0.0,
-                    help="split open strokes at sharp corners >= this deg (0 = off)")
     ap.add_argument("--tol", type=float, default=0.75)
     ap.add_argument("--eps-r", type=float, default=1.0)
     ap.add_argument("--no-refine", action="store_true")
@@ -160,12 +156,7 @@ def main(argv=None):
     final = sub
     if not a.no_chain:
         chained = work / "strokes_chained.json"
-        chain_args = [sub, "-o", chained]
-        if a.legacy_chain:
-            chain_args.append("--legacy")
-        elif a.split_corner_deg > 0:
-            chain_args += ["--split-corner-deg", a.split_corner_deg]
-        stage("chain_strokes", *chain_args)
+        stage("chain_strokes", sub, "-o", chained)
         final = chained
     contours = None
     if not a.no_beta:
